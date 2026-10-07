@@ -1,0 +1,2 @@
+# The web server document root must be public/. Deny accidental project-root hosting.
+Require all denied
