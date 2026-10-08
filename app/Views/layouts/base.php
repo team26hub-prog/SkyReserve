@@ -10,7 +10,7 @@ $pageClass = match (true) {
 $navCurrent = static fn (string $path): string => $currentPath === $path ? ' aria-current="page"' : '';
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="en" id="page-top">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -52,12 +52,23 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
             </aside>
         <?php endif; ?>
         <main id="main-content" tabindex="-1" class="app-main<?= !empty($data['wide']) ? ' wide' : '' ?>">
+            <?php require BASE_PATH . '/app/Views/layouts/back-navigation.php'; ?>
             <?php if ($data['flash']): ?>
                 <div class="notice success" role="status"><?= $escape($data['flash']) ?></div>
             <?php endif; ?>
             <?php require $viewFile; ?>
         </main>
     </div>
-    <footer class="site-footer"><div><a class="brand" href="/">Sky<span>Reserve</span></a><p>Your next journey starts here.</p></div><div><span>Single-airline travel, thoughtfully connected.</span><a href="/admin/login">Admin login</a></div></footer>
+    <footer class="site-footer">
+        <div><a class="brand" href="/">Sky<span>Reserve</span></a><p>Your next journey starts here.</p><small>Single-airline travel, thoughtfully connected.</small></div>
+        <nav class="footer-links" aria-label="Footer navigation">
+            <a href="/flights">Search flights</a>
+            <?php if (($data['user']['role'] ?? '') === 'customer'): ?><a href="/bookings">My Bookings</a><a href="/profile">Your profile</a>
+            <?php elseif (($data['user']['role'] ?? '') === 'admin'): ?><a href="/admin">Admin dashboard</a><a href="/admin/reports">Reports</a>
+            <?php else: ?><a href="/login">Customer login</a><a href="/register">Create account</a><a href="/admin/login">Admin login</a><?php endif; ?>
+            <a class="back-to-top" href="#page-top">Back to top <span aria-hidden="true">↑</span></a>
+        </nav>
+    </footer>
+    <?php require BASE_PATH . '/app/Views/layouts/confirmation.php'; ?>
 </body>
 </html>

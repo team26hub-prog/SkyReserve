@@ -3,6 +3,8 @@ Require all granted
 DirectoryIndex index.php
 
 RewriteEngine On
+# Deny hidden files/directories, including PHP's per-directory configuration.
+RewriteRule (^|/)\. - [R=404,L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [L,QSA]

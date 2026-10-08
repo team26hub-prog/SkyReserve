@@ -95,6 +95,32 @@ $sessionId = static function (CurlHandle $handle): string {
 try {
     $db = Database::connection();
     $guest = $client();
+    foreach (['/.user.ini', '/.htaccess', '/%2euser.ini', '/%5c.user.ini', '/assets/%2eprivate/file', '/.env', '/config/database.php', '/storage/payment_receipts/.gitkeep'] as $privatePath) {
+        foreach (['GET', 'HEAD'] as $method) {
+            $response = $request($guest, $method, $privatePath);
+            $assert($response['status'] === 404 && ($method !== 'HEAD' || $response['body'] === ''), $method . ' private file is not exposed: ' . $privatePath);
+        }
+    }
+    foreach (['GET', 'HEAD'] as $method) {
+        $response = $request($guest, $method, '/%00');
+        $assert($response['status'] === 400 && $response['body'] === ($method === 'HEAD' ? '' : 'Invalid request path.'), $method . ' null-byte path is rejected without a stack trace');
+    }
+    $assert($request($guest, 'GET', '/assets/css/app.css')['status'] === 200, 'public stylesheet remains available');
+    // Inject a configuration-loader failure in an isolated process; never edit local secrets.
+    foreach (['GET', 'HEAD'] as $method) {
+        $code = 'namespace App\\Core { final class Environment { public static function load(string $path): void { throw new \\RuntimeException("Private configuration failure"); } } } namespace {'
+            . '$_SERVER["REQUEST_METHOD"] = ' . var_export($method, true) . '; ob_start(); require ' . var_export(BASE_PATH . '/public/index.php', true) . ';'
+            . 'if (ob_get_level() > 1) ob_end_flush(); $body = ob_get_clean();'
+            . 'exit(http_response_code() === 500 && $body === ' . var_export($method === 'HEAD' ? '' : 'The application could not complete this request.', true) . ' ? 0 : 1); }';
+        $pipes = [];
+        $process = proc_open([PHP_BINARY, '-r', $code], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($process)) throw new RuntimeException('Configuration test process could not start.');
+        fclose($pipes[0]);
+        $output = stream_get_contents($pipes[1]); stream_get_contents($pipes[2]);
+        fclose($pipes[1]); fclose($pipes[2]);
+        $assert(proc_close($process) === 0 && $output === '', $method . ' configuration failure returns safe 500 without private details');
+    }
+    $guest = $client(); // Inspect Set-Cookie on a fresh session, after private-path checks.
     $cookieForm = $request($guest, 'GET', '/register');
     $cookieHeader = strtolower($cookieForm['headers']['set-cookie'] ?? '');
     $assert($cookieForm['status'] === 200 && str_contains($cookieHeader, 'httponly') && str_contains($cookieHeader, 'samesite=lax'), 'session cookie uses HttpOnly and SameSite=Lax');

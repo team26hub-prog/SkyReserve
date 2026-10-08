@@ -22,7 +22,9 @@
     </dl>
 <?php endforeach; ?>
 <p><a href="/flights">Search flights</a></p>
-<?php if (in_array($booking['status'], ['pending', 'payment_submitted', 'confirmed'], true) && in_array($flight['status'], ['scheduled', 'delayed'], true) && $flight['departure_at'] > gmdate('Y-m-d H:i:s')): ?>
+<?php $withinDeadline = $booking['status'] === 'confirmed' || $booking['expires_at'] === null || $booking['expires_at'] > gmdate('Y-m-d H:i:s');
+$upcomingFlight = in_array($flight['status'], ['scheduled', 'delayed'], true) && $flight['departure_at'] > gmdate('Y-m-d H:i:s'); ?>
+<?php if ($withinDeadline && $upcomingFlight && in_array($booking['status'], ['pending', 'payment_submitted', 'confirmed'], true)): ?>
     <p><a class="button" href="/bookings/seats?booking_id=<?= (int) $booking['id'] ?>">View / select seats</a></p>
 <?php endif; ?>
 <?php if ($data['payments']): ?>
@@ -39,7 +41,7 @@
         </dl>
     <?php endforeach; ?>
 <?php endif; ?>
-<?php if ($booking['status'] === 'pending' && !array_filter($data['payments'], static fn (array $payment): bool => in_array($payment['status'], ['pending', 'verified'], true))): ?>
+<?php if ($withinDeadline && $upcomingFlight && $booking['status'] === 'pending' && !array_filter($data['payments'], static fn (array $payment): bool => in_array($payment['status'], ['pending', 'verified'], true))): ?>
     <p><a class="button" href="/bookings/payment?booking_id=<?= (int) $booking['id'] ?>">Submit payment</a></p>
 <?php endif; ?>
 <?php

@@ -18,8 +18,8 @@
                     <td><?= $escape($flight['departure_at']) ?></td><td><?= $escape($flight['arrival_at']) ?></td>
                     <td class="fare"><?= $escape($flight['currency'] . ' ' . $flight['base_fare']) ?></td><td><span class="badge" data-status="<?= $escape($flight['status']) ?>"><?= $escape(ucfirst($flight['status'])) ?></span></td>
                     <td><div class="row-actions">
-                        <a href="/admin/flights/show?id=<?= (int) $flight['id'] ?>">View</a>
-                        <a href="/admin/flights/edit?id=<?= (int) $flight['id'] ?>">Edit</a>
+                        <a class="button button-secondary" href="/admin/flights/show?id=<?= (int) $flight['id'] ?>">View</a>
+                        <a class="button button-secondary" href="/admin/flights/edit?id=<?= (int) $flight['id'] ?>">Edit</a>
                         <form action="/admin/flights/delete?id=<?= (int) $flight['id'] ?>" method="post" data-confirm="Delete this flight?">
                             <input type="hidden" name="_token" value="<?= $escape($csrf) ?>"><button class="button-danger" type="submit">Delete</button>
                         </form>

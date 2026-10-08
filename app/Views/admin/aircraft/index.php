@@ -14,8 +14,8 @@
                 <tr>
                     <td><?= $escape($aircraft['model']) ?></td><td><?= $escape($aircraft['registration_number']) ?></td><td><?= (int) $aircraft['seat_count'] ?> / <?= (int) $aircraft['total_capacity'] ?></td>
                     <td><div class="row-actions">
-                        <a href="/admin/seats?aircraft_id=<?= (int) $aircraft['id'] ?>">Seats</a>
-                        <a href="/admin/aircraft/edit?id=<?= (int) $aircraft['id'] ?>">Edit</a>
+                        <a class="button button-secondary" href="/admin/seats?aircraft_id=<?= (int) $aircraft['id'] ?>">Seats</a>
+                        <a class="button button-secondary" href="/admin/aircraft/edit?id=<?= (int) $aircraft['id'] ?>">Edit</a>
                         <form action="/admin/aircraft/delete?id=<?= (int) $aircraft['id'] ?>" method="post" data-confirm="Delete this aircraft? Its seats must be removed first.">
                             <input type="hidden" name="_token" value="<?= $escape($csrf) ?>"><button class="button-danger" type="submit">Delete</button>
                         </form>

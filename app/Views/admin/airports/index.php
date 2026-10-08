@@ -14,7 +14,7 @@
                 <tr>
                     <td><?= $escape($airport['iata_code']) ?></td><td><?= $escape($airport['name']) ?></td><td><?= $escape($airport['city']) ?></td><td><?= $escape($airport['country']) ?></td>
                     <td><div class="row-actions">
-                        <a href="/admin/airports/edit?id=<?= (int) $airport['id'] ?>">Edit</a>
+                        <a class="button button-secondary" href="/admin/airports/edit?id=<?= (int) $airport['id'] ?>">Edit</a>
                         <form action="/admin/airports/delete?id=<?= (int) $airport['id'] ?>" method="post" data-confirm="Delete this airport?">
                             <input type="hidden" name="_token" value="<?= $escape($csrf) ?>"><button class="button-danger" type="submit">Delete</button>
                         </form>

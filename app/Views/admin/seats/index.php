@@ -16,7 +16,7 @@
                 <tr>
                     <td><strong><?= $escape($seat['seat_number']) ?></strong></td><td><span class="badge"><?= $escape(ucfirst($seat['cabin_class'])) ?></span></td>
                     <td><div class="row-actions">
-                        <a href="/admin/seats/edit?aircraft_id=<?= $aircraftId ?>&amp;id=<?= (int) $seat['id'] ?>">Edit</a>
+                        <a class="button button-secondary" href="/admin/seats/edit?aircraft_id=<?= $aircraftId ?>&amp;id=<?= (int) $seat['id'] ?>">Edit</a>
                         <form action="/admin/seats/delete?aircraft_id=<?= $aircraftId ?>&amp;id=<?= (int) $seat['id'] ?>" method="post" data-confirm="Delete this seat?">
                             <input type="hidden" name="_token" value="<?= $escape($csrf) ?>"><button class="button-danger" type="submit">Delete</button>
                         </form>

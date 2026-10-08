@@ -38,6 +38,12 @@ const ready = async (path) => {
     throw new Error(`Page did not load: ${path}`);
 };
 const visit = async (path) => { await command('Page.navigate', { url: new URL(path, base).href }); await ready(path); await pause(80); };
+const respondToConfirmation = async (accept = true) => {
+    const state = await evaluate(`({open: document.querySelector('#confirmation-dialog')?.open, path: location.pathname, forms: [...document.querySelectorAll('main form')].map(form => ({action: form.action, confirm: form.dataset.confirm, invalid: [...form.elements].filter(field => field.willValidate && !field.validity.valid).map(field => ({name: field.name, value: field.value, error: field.validationMessage}))}))})`);
+    assert(state.open, `Accessible confirmation dialog opens: ${JSON.stringify(state)}`);
+    await evaluate(`document.querySelector('[data-dialog-${accept ? 'confirm' : 'cancel'}]').click(); true`);
+    await pause(100);
+};
 const audit = () => {
     const visible = (el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
     const controls = [...document.querySelectorAll('input:not([type="hidden"]), select, textarea')];
@@ -65,6 +71,7 @@ const audit = () => {
 const checkPages = async (pages, group) => {
     for (const [name, path] of pages) {
         await visit(path);
+        assert(await evaluate(`location.pathname === '/' || !!document.querySelector('.back-navigation a[href^="/"]')`), `${name} provides a safe parent navigation button`);
         for (const width of [375, 768, 1440]) {
             await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
             const result = await evaluate(`(${audit.toString()})()`);
@@ -95,6 +102,9 @@ try {
     await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
     ws.addEventListener('message', (event) => {
         const message = JSON.parse(event.data), request = pending.get(message.id);
+        if (message.method === 'Page.javascriptDialogOpening' && message.params.type === 'beforeunload') {
+            command('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+        }
         if (!request) return;
         clearTimeout(request.timer); pending.delete(message.id);
         if (message.error) request.reject(new Error(message.error.message)); else request.resolve(message.result);
@@ -103,6 +113,13 @@ try {
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
     const search = `/flights?from_airport_id=${fixture.from}&to_airport_id=${fixture.to}&travel_date=${fixture.date}`;
     await checkPages([['home', '/'], ['search', '/flights'], ['search-results', search], ['login', '/login'], ['register', '/register'], ['admin-login', '/admin/login'], ['flight-details', `/flights/show?id=${fixture.flightId}`]], 'guest');
+    await visit('/flights');
+    await evaluate(`document.querySelector('#from_airport_id').value = '${fixture.from}'; document.querySelector('#from_airport_id').dispatchEvent(new Event('change', {bubbles:true})); true`);
+    await pause(450);
+    assert(await evaluate(`location.search === '' && !document.querySelector('[aria-invalid="true"]')`), 'Incomplete route filters wait for required fields without submitting');
+    await evaluate(`document.querySelector('#to_airport_id').value = '${fixture.to}'; document.querySelector('#travel_date').value = '${fixture.date}'; document.querySelector('#travel_date').dispatchEvent(new Event('change', {bubbles:true})); true`);
+    await pause(650); await ready('/flights');
+    assert(await evaluate(`new URL(location.href).searchParams.get('from_airport_id') === '${fixture.from}' && document.querySelector('.flight-results') !== null`), 'Valid flight filters refresh automatically without pressing Search');
     await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await visit('/login');
     assert(await evaluate(`getComputedStyle(document.querySelector('.main-nav')).display === 'none'`), 'Mobile menu starts collapsed');
@@ -113,22 +130,68 @@ try {
     await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`], ['payment-form', `/bookings/payment?booking_id=${fixture.bookingId}`]], 'customer');
     await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
     await evaluate(`document.querySelector('#passenger_id').selectedIndex = 1; document.querySelector('input[name="seat_id"][value="${fixture.seatId}"]').checked = true; document.querySelector('.account-form').requestSubmit(); true`);
+    await respondToConfirmation();
     await ready('/bookings/show'); await pause(100);
     assert(await evaluate(`document.body.textContent.includes('2A')`), 'Native seat selection prepares passenger for ticket');
     await visit(`/bookings/payment?booking_id=${fixture.bookingId}`);
+    assert(await evaluate(`document.querySelector('.account-form').dataset.confirm?.includes('payment')`), 'Payment submission has a confirmation handler');
     await evaluate(`document.getElementById('method').value = 'bank_transfer'; document.getElementById('transaction_reference').value = 'UI-DEMO-REFERENCE'; document.querySelector('.account-form').requestSubmit(); true`);
+    await respondToConfirmation();
     await ready('/bookings/show');
     assert(await evaluate(`document.body.textContent.includes('Awaiting Verification') && document.body.textContent.includes('UI-DEMO-REFERENCE')`), 'Native payment form works with shared loading interactions');
     await checkPages([['payment-summary', `/bookings/show?id=${fixture.bookingId}`]], 'customer');
     await visit('/profile');
     await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login');
     await signIn('admin');
+    await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 800, deviceScaleFactor: 1, mobile: false });
+    await visit('/admin');
+    assert(await evaluate(`document.querySelectorAll('.admin-nav svg[aria-hidden="true"]').length === 7`), 'All admin sidebar actions have decorative SVG icons');
+    const sidebarTop = await evaluate(`document.querySelector('.admin-sidebar').getBoundingClientRect().top`);
+    await evaluate(`window.scrollTo({top: 500, behavior: 'instant'}); true`); await pause(100);
+    assert(await evaluate(`scrollY > 0 && Math.abs(document.querySelector('.site-header').getBoundingClientRect().top) < 1`), 'Navbar remains at viewport top after scrolling');
+    assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).position === 'fixed' && Math.abs(document.querySelector('.admin-sidebar').getBoundingClientRect().top - ${sidebarTop}) < 1`), 'Desktop sidebar remains fixed after page scrolling');
+    assert(await evaluate(`document.querySelector('.footer-links a[href="/admin/reports"]') !== null && document.querySelector('.back-to-top').getAttribute('href') === '#page-top'`), 'Footer offers authorized report navigation and back-to-top link');
+    await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    await evaluate(`document.querySelector('.back-to-top').click(); true`); await pause(100);
+    assert(await evaluate(`scrollY === 0`), 'Back-to-top link returns to page start with reduced motion');
+    await command('Emulation.setEmulatedMedia', { features: [] });
+    await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: false });
+    assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).position === 'static'`), 'Mobile sidebar reflows without obscuring page content');
+    await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await checkPages([
         ['dashboard', '/admin'], ['airports', '/admin/airports'], ['airport-add', '/admin/airports/create'], ['airport-edit', `/admin/airports/edit?id=${fixture.from}`],
         ['aircraft', '/admin/aircraft'], ['aircraft-add', '/admin/aircraft/create'], ['aircraft-edit', `/admin/aircraft/edit?id=${fixture.aircraftId}`],
         ['seats', `/admin/seats?aircraft_id=${fixture.aircraftId}`], ['seat-add', `/admin/seats/create?aircraft_id=${fixture.aircraftId}`], ['seat-edit', `/admin/seats/edit?aircraft_id=${fixture.aircraftId}&id=${fixture.seatId}`],
         ['admin-flights', '/admin/flights'], ['flight-add', '/admin/flights/create'], ['flight-edit', `/admin/flights/edit?id=${fixture.flightId}`], ['admin-flight-details', `/admin/flights/show?id=${fixture.flightId}`],
     ], 'admin');
+    await visit('/admin/flights/create');
+    assert(await evaluate(`document.querySelector('a.return-link').classList.contains('button-secondary')`), 'Cancel and return is styled as an interactive button');
+    await evaluate(`document.querySelector('#flight_number').value = 'UNSAVED-TEST'; document.querySelector('.back-link').click(); true`);
+    assert(await evaluate(`document.querySelector('#confirmation-title').textContent === 'Leave without saving?' && document.activeElement.matches('[data-dialog-cancel]')`), 'Unsaved navigation asks permission and focuses the safe action');
+    await respondToConfirmation(false);
+    assert(await evaluate(`location.pathname === '/admin/flights/create' && document.querySelector('#flight_number').value === 'UNSAVED-TEST'`), 'Keep editing preserves unsaved values');
+    await evaluate(`document.querySelector('.back-link').click(); true`);
+    for (const width of [375, 1440]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        assert(await evaluate(`(() => { const rect = document.querySelector('#confirmation-dialog').getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight; })()`), `Confirmation dialog fits at ${width}px`);
+        const screenshot = await command('Page.captureScreenshot');
+        writeFileSync(join(artifacts, `confirmation-dialog-${width}.png`), Buffer.from(screenshot.data, 'base64'));
+    }
+    await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await pause(100);
+    assert(await evaluate(`!document.querySelector('#confirmation-dialog').open && location.pathname === '/admin/flights/create'`), 'Escape dismisses confirmation without discarding edits');
+    await evaluate(`document.querySelector('a.return-link').click(); true`);
+    await respondToConfirmation();
+    await ready('/admin/flights');
+    await visit('/admin/flights');
+    for (const width of [1280, 1440, 1920]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        assert(await evaluate(`(() => { const region = document.querySelector('[aria-label="Flight list"]'); const sidebar = document.querySelector('.admin-sidebar').getBoundingClientRect(); return sidebar.left <= 17 && region.scrollWidth <= region.clientWidth + 1 && [...region.querySelectorAll('.row-actions a, .row-actions button')].every((action) => { const rect = action.getBoundingClientRect(); const bounds = region.getBoundingClientRect(); return rect.left >= bounds.left && rect.right <= bounds.right; }); })()`), `Flight actions fit without horizontal scrolling at ${width}px`);
+    }
+    await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+    const wideFlightScreenshot = await command('Page.captureScreenshot', {captureBeyondViewport: true});
+    writeFileSync(join(artifacts, 'admin-flights-wide-1440.png'), Buffer.from(wideFlightScreenshot.data, 'base64'));
     await visit('/admin/payments');
     const paymentId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); const link = row?.querySelector('a[href^="/admin/payments/show"]'); return link ? new URL(link.href).searchParams.get('id') : null; })()`);
     assert(!!paymentId, 'Submitted customer payment appears in admin list');
@@ -138,12 +201,14 @@ try {
     ], 'admin');
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/payments'`), 'Payment pages highlight Payments navigation');
     await visit(`/admin/payments/show?id=${paymentId}`);
-    await evaluate(`window.confirm = () => true; document.querySelector('form[action^="/admin/payments/verify"]').requestSubmit(); true`);
+    await evaluate(`document.querySelector('form[action^="/admin/payments/verify"]').requestSubmit(); true`);
+    await respondToConfirmation();
     await ready('/admin/payments/show');
     await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Verified' && document.body.textContent.includes('Confirmed')`), 'Native admin verification works with shared confirmation and loading interactions');
     await checkPages([['admin-verified-details', `/admin/payments/show?id=${paymentId}`]], 'admin');
     await evaluate(`document.querySelector('form[action^="/admin/bookings/tickets"]').requestSubmit(); true`);
+    await respondToConfirmation();
     await ready('/admin/tickets/show'); await pause(100);
     const ticketId = await evaluate(`new URL(location.href).searchParams.get('id')`);
     assert(await evaluate(`document.querySelector('.ticket-document').textContent.includes('Preview Passenger')`), 'Native ticket generation works from verified admin payment');
@@ -166,15 +231,44 @@ try {
     ], 'admin');
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/reports'`), 'Reports highlight admin sidebar');
     await visit('/admin/reports/bookings');
+    if (await evaluate(`CSS.supports('appearance', 'base-select')`)) {
+        const filterPosition = await evaluate(`(() => { const field = document.querySelector('#booking_status'); field.scrollIntoView({block: 'center', behavior: 'instant'}); const rect = field.getBoundingClientRect(); return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2}; })()`);
+        await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...filterPosition, button: 'left', clickCount: 1 });
+        await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...filterPosition, button: 'left', clickCount: 1 });
+        assert(await evaluate(`document.querySelector('#booking_status').matches(':open') && getComputedStyle(document.querySelector('#booking_status'), '::picker(select)').borderRadius === '12px'`), 'Filter opens the styled native dropdown');
+        assert(await evaluate(`(() => { const select = document.querySelector('#booking_status'); const picker = getComputedStyle(select, '::picker(select)'); const rect = select.getBoundingClientRect(); return picker.positionTryFallbacks === 'none' && Math.abs(parseFloat(picker.top) - rect.bottom - 6) < 1 && Math.abs(parseFloat(picker.left) - rect.left) < 1; })()`), 'Dropdown is positioned directly below its field without upward fallback');
+        const pickerScreenshot = await command('Page.captureScreenshot');
+        writeFileSync(join(artifacts, 'report-filter-open.png'), Buffer.from(pickerScreenshot.data, 'base64'));
+        await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
+        await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
+        await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+        await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+        assert(await evaluate(`document.querySelector('#booking_status').value === 'pending' && !document.querySelector('#booking_status').matches(':open')`), 'Styled filter supports native keyboard selection');
+    }
     await evaluate(`document.querySelector('#flight_id').value = '${fixture.flightId}'; document.querySelector('#booking_status').value = 'confirmed'; document.querySelector('.report-filters').requestSubmit(); true`);
     await ready('/admin/reports/bookings'); await pause(100);
     assert(await evaluate(`new URL(location.href).searchParams.get('flight_id') === '${fixture.flightId}' && !!document.querySelector('[data-report-row="${fixture.bookingId}"]') && document.querySelector('[data-report-total]').textContent.trim() === '1'`), 'Native report filters retain selection and show accurate total');
-    await evaluate(`document.querySelector('.report-filters a').click(); true`); await ready('/admin/reports/bookings'); await pause(100);
-    assert(await evaluate(`location.search === '' && document.querySelector('#flight_id').value === '' && document.querySelector('#booking_status').value === ''`), 'Report Reset clears URL and controls');
+    await evaluate(`document.querySelectorAll('.report-filters input, .report-filters select').forEach(field => field.value = ''); document.querySelector('#booking_status').dispatchEvent(new Event('change', {bubbles:true})); true`); await pause(650); await ready('/admin/reports/bookings');
+    assert(await evaluate(`document.querySelector('#flight_id').value === '' && document.querySelector('#booking_status').value === '' && new URL(location.href).searchParams.get('booking_status') === ''`), 'Clearing fields removes report filters automatically');
+    for (const width of [375, 1440]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        assert(await evaluate(`!document.querySelector('.report-filters button[type="submit"], .report-filters a')`), `Automatic report filters have no Apply or Reset buttons at ${width}px`);
+        if (width === 1440) assert(await evaluate(`(() => { const tops = [...document.querySelectorAll('.report-filters > div')].map(field => field.getBoundingClientRect().top); const heights = [...document.querySelectorAll('.report-filters input, .report-filters select')].map(field => field.getBoundingClientRect().height); return tops.every(top => Math.abs(top - tops[0]) < 1) && heights.every(height => Math.abs(height - heights[0]) < 1); })()`), 'All five report filters fit in one desktop row with equal control heights');
+        assert(await evaluate(`[...document.querySelectorAll('[aria-label="Report shortcuts"] a')].every(link => link.classList.contains('button') && getComputedStyle(link).textDecorationLine === 'none')`), 'Report shortcuts are buttons without underlines');
+    }
+    await evaluate(`document.querySelector('#flight_id').value = '${fixture.flightId}'; document.querySelector('#booking_status').value = 'cancelled'; document.querySelector('#booking_status').dispatchEvent(new Event('change', {bubbles:true})); true`);
+    await pause(650); await ready('/admin/reports/bookings');
+    assert(await evaluate(`new URL(location.href).searchParams.get('booking_status') === 'cancelled' && document.querySelector('[data-report-total]').textContent.trim() === '0'`), 'Report filters refresh automatically after selection');
     await visit(`/admin/seats?aircraft_id=${fixture.aircraftId}`);
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/aircraft'`), 'Seat pages highlight Aircraft & seats');
-    assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new Event('submit', {bubbles:true, cancelable:true}); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Cancelled delete stays on page without loading state');
-    assert(await evaluate(`(() => { window.confirm = () => true; const form = document.querySelector('form[data-confirm]'); const event = new SubmitEvent('submit', {bubbles:true, cancelable:true, submitter:form.querySelector('button')}); form.dispatchEvent(event); return form.querySelector('button').getAttribute('aria-busy') === 'true'; })()`), 'Confirmed action gets loading state');
+    await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    assert(await evaluate(`document.querySelector('#confirmation-dialog').open && !document.querySelector('form[data-confirm]').dataset.submitting`), 'Repeated submission while awaiting permission stays blocked');
+    await respondToConfirmation(false);
+    assert(await evaluate(`!document.querySelector('form[data-confirm]').dataset.submitting`), 'Cancelled delete stays on page without loading state');
+    await evaluate(`(() => { const form = document.querySelector('form[data-confirm]'); let submits = 0; const stopSave = (event) => { if (++submits === 2) { event.preventDefault(); form.removeEventListener('submit', stopSave); } }; form.addEventListener('submit', stopSave); form.requestSubmit(form.querySelector('button')); return true; })()`);
+    await respondToConfirmation();
+    assert(await evaluate(`document.querySelector('form[data-confirm] button').getAttribute('aria-busy') === 'true'`), 'Confirmed action gets loading state without altering fixture');
     assert(await evaluate(`window.dispatchEvent(new Event('pageshow')); !document.querySelector('button[aria-busy]')`), 'Back/Forward restores loading buttons');
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     assert(await evaluate(`getComputedStyle(document.querySelector('button')).transitionDuration === '0s'`), 'Reduced-motion preference respected');
@@ -186,8 +280,11 @@ try {
     assert(offline.status === 200 && offline.disposition.includes('.html') && offline.html.includes('Preview Passenger') && offline.html.includes('@media print') && !offline.html.includes('<script'), 'Customer downloads a self-contained printable ticket');
     writeFileSync(join(artifacts, 'ticket-download.html'), offline.html);
     await checkPages([['my-bookings', '/bookings'], ['my-bookings-empty', '/bookings?status=cancelled'], ['cancellation-form', `/bookings/cancel?booking_id=${fixture.bookingId}`]], 'customer');
-    assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector('button') }); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Customer can dismiss cancellation confirmation');
-    await evaluate(`window.confirm = () => true; document.querySelector('#reason').value = 'Travel plans changed'; document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    await respondToConfirmation(false);
+    assert(await evaluate(`!document.querySelector('form[data-confirm]').dataset.submitting`), 'Customer can dismiss cancellation confirmation');
+    await evaluate(`document.querySelector('#reason').value = 'Travel plans changed'; document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    await respondToConfirmation();
     await ready('/bookings/show'); await pause(100);
     assert(await evaluate(`document.body.textContent.includes('Cancellation Requested')`), 'Native cancellation request updates summary');
     await checkPages([['cancellation-requested-summary', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-requested', '/bookings?status=cancellation_requested']], 'customer');
@@ -197,15 +294,17 @@ try {
     await checkPages([['admin-cancellations', '/admin/cancellations'], ['admin-cancellation-details', `/admin/cancellations/show?id=${cancellationId}`], ['admin-approved-cancellations-empty', '/admin/cancellations?status=approved'], ['admin-rejected-cancellations-empty', '/admin/cancellations?status=rejected']], 'admin');
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/cancellations'`), 'Cancellation pages highlight admin navigation');
     await visit(`/admin/cancellations/show?id=${cancellationId}`);
-    await evaluate(`window.confirm = () => true; document.querySelector('#note').value = 'Retain booking'; const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[formaction]')); true`);
+    await evaluate(`document.querySelector('#note').value = 'Retain booking'; const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[formaction]')); true`);
+    assert(await evaluate(`document.querySelector('#confirmation-message').textContent.includes('Reject')`), 'Rejection shows the selected action rather than approval');
+    await respondToConfirmation();
     await ready('/admin/cancellations/show'); await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Rejected' && document.body.textContent.includes('Confirmed')`), 'Native rejection restores booking through submitter formaction');
     await checkPages([['admin-rejected-cancellation-details', `/admin/cancellations/show?id=${cancellationId}`]], 'admin');
     await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login'); await signIn('customer');
-    await visit(`/bookings/cancel?booking_id=${fixture.bookingId}`); await evaluate(`window.confirm = () => true; document.querySelector('form[data-confirm]').requestSubmit(); true`); await ready('/bookings/show'); await pause(100);
+    await visit(`/bookings/cancel?booking_id=${fixture.bookingId}`); await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`); await respondToConfirmation(); await ready('/bookings/show'); await pause(100);
     await visit('/profile'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login'); await signIn('admin'); await visit('/admin/cancellations');
     const retryId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a').href).searchParams.get('id'); })()`);
-    await visit(`/admin/cancellations/show?id=${retryId}`); await evaluate(`window.confirm = () => true; const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[type="submit"]')); true`); await ready('/admin/cancellations/show'); await pause(100);
+    await visit(`/admin/cancellations/show?id=${retryId}`); await evaluate(`const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[type="submit"]')); true`); await respondToConfirmation(); await ready('/admin/cancellations/show'); await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Approved' && document.body.textContent.includes('Cancelled') && document.body.textContent.includes('Released')`), 'Native approval cancels booking and releases seat');
     await checkPages([['admin-approved-cancellation-details', `/admin/cancellations/show?id=${retryId}`]], 'admin');
     await checkPages([['report-cancellation-history', `/admin/reports/cancellations?flight_id=${fixture.flightId}`]], 'admin');

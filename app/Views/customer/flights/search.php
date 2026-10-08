@@ -3,7 +3,7 @@
     <h1 id="search-title">Search flights</h1>
     <p>Choose your route and travel date. All dates and times use UTC.</p>
 </section>
-<form class="search-form" action="/flights" method="get">
+<form class="search-form" action="/flights" method="get" data-auto-filter>
     <?php foreach (['from_airport_id' => 'From airport', 'to_airport_id' => 'To airport'] as $key => $label): ?>
         <div><label for="<?= $key ?>"><?= $label ?></label>
         <select id="<?= $key ?>" name="<?= $key ?>" required>

@@ -22,7 +22,7 @@
 <h2>Review request</h2>
 <form class="account-form" method="post" data-confirm="Submit this cancellation review? Approval cancels the booking, releases seats, and voids tickets." action="/admin/cancellations/approve?id=<?= (int) $request['id'] ?>">
     <input type="hidden" name="_token" value="<?= $escape($csrf) ?>"><label for="note">Admin note <span class="muted">(optional)</span></label><textarea id="note" name="note" maxlength="1000" rows="3" aria-describedby="note-help"><?= $escape($data['note']) ?></textarea><small id="note-help">Up to 1000 characters. Visible to the customer.</small>
-    <div class="actions"><button class="button-danger" type="submit">Approve cancellation</button><button class="button-secondary" type="submit" formaction="/admin/cancellations/reject?id=<?= (int) $request['id'] ?>">Reject request</button></div>
+    <div class="actions"><button class="button-danger" type="submit" data-confirm="Approve this cancellation? The booking will be cancelled, seats released, and tickets voided. Payments will remain unchanged.">Approve cancellation</button><button class="button-secondary" type="submit" formaction="/admin/cancellations/reject?id=<?= (int) $request['id'] ?>" data-confirm="Reject this cancellation request and restore the previous booking status?">Reject request</button></div>
 </form>
 <?php else: ?><p class="muted">This request cannot be reviewed in its current state.</p><?php endif; ?>
 <p><a href="/admin/cancellations">Return to cancellations</a></p>

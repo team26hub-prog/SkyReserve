@@ -1,170 +1,110 @@
-# SkyReserve — Modules 1–12
+﻿# SkyReserve
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing; Module 9 adds admin payment verification and rejection; Module 10 adds protected ticket generation, viewing, printing, and HTML download; Module 11 adds My Bookings and customer cancellation requests with admin approval/rejection; Module 12 adds admin dashboard metrics and read-only reports. Automatic refunds, check-in, and boarding passes are not implemented. The implemented scope ends at Module 12.
+SkyReserve is a single-airline ticketing and operations application built with **plain PHP, MySQL, HTML, CSS, and vanilla JavaScript**, using MVC. Its 12 core modules are complete. No frontend framework, Composer package, or build step is required.
+
+## Functionality
+
+| Customers | Administrators |
+| --- | --- |
+| Registration, login, logout, profile | Protected admin login and dashboard |
+| Flight search by route and travel date | Airport, aircraft, seat, and flight management |
+| Passenger details and booking references | Manual payment verification or rejection |
+| Seat selection and manual payment submission | Cancellation approval or rejection |
+| Protected receipts and tickets; print/HTML download | Booking, flight, payment, cancellation, and passenger reports |
+| My Bookings and cancellation requests | Metrics and verified revenue grouped by currency |
+
+Payments are manual. Tickets require a confirmed booking, verified payment, and valid passenger/seat assignments. Cancellation approval releases seats and voids tickets; it does not automatically refund payments. Automatic refunds, online payment processing, check-in, and boarding passes are outside the implemented scope.
 
 ## Requirements
 
-- PHP 8.1+ with `pdo_mysql`, `mbstring`, `fileinfo`, and GD with JPEG/PNG/WEBP support (`curl` is needed only for HTTP integration tests).
-- MySQL 8.0.16+ (enforced CHECK constraints), using InnoDB.
-- Apache 2.4 with `mod_rewrite` for Laragon hosting, or PHP's built-in server for development.
-- No Composer, framework, or JavaScript build tools are required.
+- PHP **8.1+** with `pdo_mysql`, `mbstring`, `fileinfo`, and GD supporting JPEG, PNG, and WEBP.
+- MySQL **8.0.16+**, InnoDB, and enforced CHECK constraints.
+- Apache **2.4** with `mod_rewrite`, or PHP's development server locally.
+- For tests: PHP `curl`; Node **22+** and Google Chrome for browser checks only.
 
-## Structure
+## Project structure
 
 ```text
-app/
-  Controllers/                         Home, auth, profile, admin, airport/aircraft/seat/flight CRUD
-  Controllers/FlightSearchController.php Public customer search and details
-  Controllers/SeatSelectionController.php Owner-only seat map and assignment
-  Controllers/PaymentController.php     Owner-only payment submission and receipt access
-  Controllers/AdminPaymentController.php Admin payment list, details, review, and receipt access
-  Controllers/TicketController.php      Customer/admin ticket generation, viewing, and download
-  Controllers/CancellationController.php Owner-only cancellation request form and submission
-  Controllers/AdminCancellationController.php Admin cancellation list, details, and review
-  Controllers/AdminReportController.php Admin report pages and validated read-only filters
-  Core/Controller.php                   Rendering, redirects, role/CSRF guards
-  Core/Auth.php                         Current-user lookup and sign-in/out
-  Core/Session.php                      Session cookies, CSRF, flash messages
-  Core/Database.php                     Shared, lazy PDO connection
-  Core/PaymentReceipt.php               Private, validated receipt image storage
-  Models/Model.php                      Shared model base
-  Models/User.php                       Prepared user queries and registration
-  Models/Airport.php                    Airport persistence
-  Models/Aircraft.php                   Aircraft persistence and capacity locking
-  Models/Seat.php                       Aircraft-scoped seat persistence
-  Models/Flight.php                     Flight persistence, availability queries, joined details
-  Models/Booking.php                    Atomic booking creation and customer ownership
-  Models/Passenger.php                  Passenger persistence
-  Models/BookingSeat.php                Seat availability and transactional assignment
-  Models/Payment.php                    Payment persistence, eligibility, and duplicate protection
-  Models/Ticket.php                     Transactional issuance and authorized ticket queries
-  Models/Cancellation.php               Cancellation history, eligibility, and transactional review
-  Models/AdminReport.php                Dashboard metrics and paginated report queries
-  Views/                               Home, auth, customer, admin, errors
-  Views/layouts/base.php                Shared minimal layout
-config/                                 Database settings read from environment
-.env.example                            Safe template for local settings
-.env                                    Local secrets (ignored by Git)
-database/schema.sql                     Current eleven-table schema (Modules 1–11)
-database/migrations/                    Upgrade SQL for existing installations
-public/                                 Web document root and responsive CSS
-routes/web.php                          Explicit route definitions
-scripts/check_database.php              Read-only connection/table check
-scripts/test_schema.php                 Transactional constraint checks
-scripts/create_admin.php                CLI-only admin provisioning
-scripts/test_auth.php                   HTTP authentication integration tests
-scripts/migrate_module3.php             Repeat-safe Module 3 database upgrade
-scripts/test_inventory.php              CRUD, access, validation, and capacity tests
-scripts/migrate_module4.php             Repeat-safe flight constraint upgrade
-scripts/test_flights.php                Flight CRUD, validation, and security tests
-scripts/test_search.php                 Customer search and availability integration tests
-scripts/migrate_module6.php             Repeat-safe passenger/submission-key upgrade
-scripts/test_bookings.php               Booking, validation, ownership, and replay tests
-scripts/test_seat_selection.php         Seat selection, ownership, and concurrency tests
-scripts/migrate_module8.php             Repeat-safe payment/state/constraint upgrade
-scripts/test_payments.php               Upload, payment, authorization, and rollback tests
-scripts/test_payment_reviews.php        Admin review, audit, authorization, and concurrency tests
-scripts/test_tickets.php                Ticket issuance, ownership, content, and concurrency tests
-scripts/migrate_module11.php            Repeat-safe cancellation/status/history upgrade
-scripts/test_cancellations.php          My Bookings, cancellation, access, rollback, and race tests
-scripts/test_reports.php                Dashboard/report accuracy, filters, access, and read-only tests
-storage/payment_receipts/               Private receipt files, ignored by Git
-config/payments.php                     Demo/configurable airline payment instructions
-bootstrap.php                           App autoloading and UTC setup
+app/Controllers/           HTTP actions and access guards
+app/Models/                Prepared queries and transactional workflows
+app/Views/                 Customer/admin pages and shared layouts
+app/Core/                  Database, environment, auth, session, receipt helpers
+config/                    Environment-backed database/payment configuration
+database/schema.sql        Current eleven-table initial schema
+database/migrations/       SQL upgrades for existing installations
+public/                    Web document root, CSS, JavaScript, front controller
+routes/web.php             Explicit GET/POST routes
+scripts/                   Setup, inventory seeding, migrations, test runners
+storage/payment_receipts/  Private receipt images
+bootstrap.php              Autoloading, environment loading, UTC configuration
+.env.example               Configuration template; .env is ignored by Git
 ```
 
-The shared layout adapts its navigation and logout form to the signed-in role.
+The database contains `users`, `airports`, `aircraft`, `seats`, `flights`, `bookings`, `passengers`, `booking_seats`, `payments`, `tickets`, and `cancellations`. A booking belongs to a customer and flight; passengers, payment submissions, and cancellation history belong to that booking. Seat allocations link its passenger to the flight's aircraft seat; tickets reference allocations. Composite foreign keys protect these relationships, and unique constraints prevent duplicate active seat/payment/cancellation records.
 
-## Local database setup
+## Local setup
 
-Start MySQL in Laragon. This workspace's ignored `.env` contains its current local database settings. Credentials are no longer hardcoded in the database config.
+Run commands from the project root in Laragon's terminal, where PHP and MySQL are on PATH.
 
-On a new clone, copy `.env.example` to `.env` and supply your own `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`. Bootstrap loads `.env` for both web requests and CLI scripts without a dependency. Existing process/server variables take precedence. Empty passwords are supported for local development. The old `database.local.php` override is no longer loaded.
+1. Start MySQL and configure the environment:
 
-The loader accepts one `KEY=value` per line and standalone `#` comments. Single/double quotes wrap literal values; `#`, dollar signs, and backslashes inside values are preserved. Variable expansion, escape processing, and trailing comments are not supported. Restart the development server after editing configuration.
+   ```powershell
+   Copy-Item .env.example .env
+   ```
 
-Commit `.env.example` with placeholders. `.gitignore` excludes `.env` and `.env.*` variants while allowing `.env.example`. Do not put real passwords or API keys in the template. Continue serving only `public/`; environment files remain outside the document root.
+   Set `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD` in `.env`. Do not overwrite an existing configured `.env`. Payment instruction settings also live there; defaults are clearly labelled coursework samples. Server/process variables take precedence. The loader supports literal `KEY=value`, optional wrapping quotes, and standalone `#` comments; interpolation and trailing comments are unsupported.
 
-From the project root, with PHP and MySQL on PATH:
+2. For a **new empty database**:
+
+   ```powershell
+   mysql -u root -p -e "CREATE DATABASE airplane_ticketing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   mysql -u root -p airplane_ticketing -e "source database/schema.sql"
+   php scripts/check_database.php
+   ```
+
+   Match the database name to `.env`; supply the configured MySQL host/port if different. Enter the database password when prompted. Skip creation/import for an existing installation: the initial schema is not a migration and intentionally fails on existing tables.
+
+3. Seed the optional inventory:
+
+   ```powershell
+   php scripts/seed_inventory.php
+   ```
+
+4. Start the local server:
+
+   ```powershell
+   php -d upload_max_filesize=5M -d post_max_size=8M -d memory_limit=128M -S 127.0.0.1:8000 -t public public/router.php
+   ```
+
+   Visit **http://127.0.0.1:8000/**. Restart the server after editing configuration. Add flights through the admin area or use the optional sample flight seed below.
+
+### Inventory seed
+
+The CLI-only seed reuses the shared PDO connection and inserts only airports, aircraft, and seats. Airport codes and sample aircraft registrations identify existing records. A transaction, a seed-run lock, aircraft row locks, and unique indexes make repeated/concurrent runs safe. Matching data and existing capacities/statuses are preserved; conflicting models/classes or insufficient capacity abort the entire seed with no partial inserts.
+
+Airports: **LHE, KHI, ISB, DXB, DOH, JED**, with names, cities, countries, and IANA timezones.
+
+| Aircraft | Sample registration | Capacity | Business | Economy |
+| --- | --- | ---: | --- | --- |
+| Airbus A320 | AP-SRA | 150 | Rows 1–3: A, C, D, F (12) | Rows 4–26: A–F (138) |
+| Boeing 737-800 | AP-SRB | 160 | Rows 1–4: A, C, D, F (16) | Rows 5–28: A–F (144) |
+| Airbus A321 | AP-SRC | 200 | Rows 1–5: A, C, D, F (20) | Rows 6–35: A–F (180) |
+
+A fresh run inserts **6 airports, 3 aircraft, and 510 seats**. Existing records reduce those counts; a second unchanged run inserts zero. Registrations and layouts are sample airline inventory. No flights, users, bookings, payments, or tickets are seeded.
+
+### Sample Scheduled flights
+
+After inventory seeding, run:
 
 ```powershell
-mysql -u root -p -e "CREATE DATABASE airplane_ticketing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p airplane_ticketing -e "source database/schema.sql"
-php scripts/check_database.php
-php scripts/test_schema.php
+php scripts/seed_flights.php
 ```
 
-At the password prompt, enter your MySQL password (press Enter for an empty local password). If the database has already been created and imported, skip the first two commands. The SQL intentionally fails on existing tables: do not reimport it as an update or migration. MySQL DDL is not transactional; resolve a failed initial import in a new empty database. No user accounts or feature data are seeded.
+This separately inserts 10 Scheduled sample flights, SR901–SR910, starting tomorrow in UTC: return pairs for LHE–KHI, ISB–KHI, LHE–DXB, KHI–DOH, and ISB–JED. Aircraft are AP-SRA/AP-SRB/AP-SRC, with sensible flight durations and turnaround gaps; fares are PKR 18,500–95,000. Only the `flights` table is populated. Existing sample flight numbers, dates, fares, and statuses are preserved, so repeated runs add no duplicates or overwrite operational records. Conflicting references abort the transaction. Rerunning later does not reschedule departed sample flights.
 
-Laragon's terminal provides PATH entries. In a regular PowerShell terminal, use the full paths to `php.exe` and `mysql.exe` under `D:\laragon\bin` when necessary. If using a custom port or host, also pass `--host` and `--port` to MySQL.
+### Administrator account
 
-## Run the foundation
-
-From the project root:
-
-```powershell
-php -d upload_max_filesize=5M -d post_max_size=8M -d memory_limit=128M -S 127.0.0.1:8000 -t public public/router.php
-```
-
-Visit <http://127.0.0.1:8000/> and choose Register or Customer login. MySQL must be running to register or log in. An unknown URL returns 404; POST to `/` returns 405. Stop the server with Ctrl+C.
-
-For Laragon/Apache, set the virtual host's `DocumentRoot` and matching `<Directory>` to `D:/laragon/www/AirplaneTicketingSystem/public`, with `AllowOverride All` and `Require all granted`. Enable `mod_rewrite` and reload Apache. The repository-root `.htaccess` denies accidental root hosting; `public/.htaccess` grants access to the public directory. Do not host the repository root or expose config, SQL, or scripts. Apache hosting has not been automatically configured.
-
-## Tables and relationships
-
-All eleven tables have an auto-increment primary key, `created_at`, `updated_at`, and an explicit status field. Foreign keys use RESTRICT to protect related records; status changes are intended for future workflows.
-
-| Table | Main relationships / purpose |
-| --- | --- |
-| `users` | Customers/admins; unique email, future password hashes, role defaults to customer |
-| `airports` | Unique IATA code; origin/destination of many flights; IANA timezone name |
-| `aircraft` | Unique registration; has many seats and flights |
-| `seats` | Belongs to an aircraft; seat number unique per aircraft |
-| `flights` | Belongs to aircraft and two airports; many bookings |
-| `bookings` | Belongs to a user and one flight; unique booking reference |
-| `passengers` | Belongs to a booking; travelers need not have user accounts |
-| `booking_seats` | Connects booking, passenger, flight, aircraft, and seat |
-| `payments` | Many payment submissions per booking; optional reviewer references users |
-| `tickets` | One ticket per seat allocation; reaches booking/passenger/flight through `booking_seats` |
-| `cancellations` | Request history per booking, at most one pending request; requester/reviewer reference users |
-
-Composite foreign keys ensure a seat allocation matches the booking's flight, the passenger's booking, and the flight's aircraft. A generated `occupied_seat_id` and unique `(flight_id, occupied_seat_id)` prevent two reserved/confirmed allocations of the same seat on a flight. Released rows have NULL occupancy, so a later booking can reuse the seat while the previous row remains. Each passenger has one allocation row; later seat changes would update that row. Tickets reference that allocation, so future confirmed-ticket changes must preserve ticket consistency.
-
-Amounts use DECIMAL rather than floating point; currency defaults to PKR and is stored explicitly. Application/database sessions use UTC; airport timezone names support later local-time display. Payment proof paths are metadata only; future upload handling should keep files outside `public/`.
-
-The schema does not enforce user roles on reviewer foreign keys, aircraft schedule conflicts, cross-table payment totals/currencies, or status transitions. Future modules must validate those rules and use transactions when booking, releasing seats, reviewing payments, or issuing tickets. No workflow for those operations exists in Module 1.
-
-## Verification
-
-`check_database.php` checks the reusable PDO connection and presence of all eleven tables. `test_schema.php` inserts temporary fixtures, tests airport/time/fare checks, composite foreign keys, duplicate active seats, released-seat reuse, and ticket/cancellation uniqueness, then rolls everything back. Use a development database; tests can consume auto-increment values even when rolled back.
-
-To lint all PHP files in PowerShell:
-
-```powershell
-Get-ChildItem -Recurse -Filter *.php | ForEach-Object { php -l $_.FullName }
-```
-
-## Module 2 authentication
-
-| Method | Route | Access |
-| --- | --- | --- |
-| GET / POST | `/register` | Guests; customer registration only |
-| GET / POST | `/login` | Guests; customer login |
-| POST | `/logout` | Signed-in customers |
-| GET | `/profile` | Signed-in customers; read-only profile |
-| GET / POST | `/admin/login` | Guests; admin login |
-| POST | `/admin/logout` | Signed-in admins |
-| GET | `/admin` | Signed-in admins; basic protected area |
-
-Registration validates name, email, optional phone, password length, and password confirmation. Emails are trimmed and lowercased; the existing unique email index prevents duplicates, including concurrent registrations. Passwords use `password_hash()` and are checked using `password_verify()`. Passwords require at least 8 characters and at most 72 bytes to avoid bcrypt truncation. Registration ignores submitted roles and always creates an active customer. Registration redirects to login without automatically signing in.
-
-All POST forms require a session CSRF token, including login and logout. Successful login regenerates the session ID, rotates the CSRF token, and stores only the user ID. Protected requests load the current user from the database and check the role and active status. Guests redirect to the appropriate login page; signed-in users with the wrong role receive 403. Customers cannot access the admin area, and admins cannot access the customer-only profile. Authenticated users visiting guest forms redirect to their own area. HEAD requests run the same access checks as GET.
-
-Session cookies use HttpOnly, SameSite=Lax, and Secure when served through HTTPS. Session storage uses the server's configured `session.save_path`, which must be writable by PHP. Logout destroys the session and expires its cookie. Responses use `Cache-Control: no-store`; displayed user fields are HTML-escaped. No password is repopulated in forms or stored in a session. Use HTTPS when hosting beyond local development.
-
-### Create an administrator
-
-No default admin password or public admin registration exists. Provision an admin from Laragon's PowerShell terminal:
+There is no default administrator password or public admin registration. Provision an account through the CLI:
 
 ```powershell
 $adminPassword = Read-Host 'Admin password' -AsSecureString
@@ -177,506 +117,66 @@ try {
 }
 ```
 
-Then visit `/admin/login`. The command hashes the supplied password and creates an active admin in the existing `users` table. It refuses duplicate emails and never changes existing accounts. Admin provisioning has no web route and does not change the database schema.
+Passwords require at least eight characters and at most 72 bytes. Existing emails are refused. Sign in at `/admin/login`; customer registration always creates a customer.
 
-### Test authentication
+### Existing database upgrades
 
-Keep the development server running, then in a second Laragon terminal:
-
-```powershell
-php scripts/test_auth.php http://127.0.0.1:8000
-```
-
-The server and test runner must use the same database configuration. Run on a local development database. The test makes real HTTP requests with cookies and CSRF tokens, creates randomly named customer/admin fixtures, and removes only those users in a cleanup block. It covers registration and validation, duplicate emails, both login/logout flows, invalid credentials, role restrictions, guest access, HEAD protection, session regeneration, old-session rejection, CSRF failures, escaped profile output, and inactive accounts. It does not modify flight, booking, or payment data. If the test process is forcibly terminated, its `auth-customer-*` / `auth-admin-*` users may require manual cleanup.
-
-Validated locally with PHP 8.3.33 and MySQL 8.4.3: all PHP files pass lint, and 37 HTTP authentication checks pass. Module 2 did not change the Module 1 database schema.
-
-## Module 3: Airports, aircraft, and seats
-
-Sign in at `/admin/login`, then use the Airports or Aircraft & seats links in the admin navigation. Every Module 3 endpoint requires an active admin account. Guests redirect to admin login; customers receive 403. All mutations require POST and a valid CSRF token. Deletes ask for confirmation in the browser when JavaScript is enabled.
-
-### Upgrade an existing Module 1/2 database
-
-Stop application writes, then run from the project root:
+Back up the database, then run only the upgrades applicable to the installation, in order:
 
 ```powershell
 php scripts/migrate_module3.php
-```
-
-The upgrade adds `aircraft.total_capacity` as an unsigned integer with a positive-value CHECK constraint and narrows `seats.cabin_class` to `economy`/`business`. It preserves the existing eleven tables, users, keys, and relationships. Existing aircraft get a provisional capacity of at least their configured seat count, or 1 if no seats exist; edit them to set the actual capacity. The script preserves larger capacities on reruns and can resume after partially applied DDL. It refuses to run when first-class seats exist, so those records can be reviewed before narrowing the enum. MySQL DDL is not transactional.
-
-The local project database has already been upgraded. Fresh installations should import the current `database/schema.sql`; do not reimport the schema into an existing database. The upgrade command is safe to run after a fresh import as well.
-
-### New routes
-
-The following routes exist for each resource: `airports`, `aircraft`, and `seats`.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/admin/{resource}` | List records |
-| GET | `/admin/{resource}/create` | Add form |
-| GET | `/admin/{resource}/edit?id=…` | Edit form |
-| POST | `/admin/{resource}` | Create record |
-| POST | `/admin/{resource}/update?id=…` | Update record |
-| POST | `/admin/{resource}/delete?id=…` | Delete record |
-
-These are eighteen explicit routes, not a dynamic routing feature. Every seat route also requires `aircraft_id=…`; edit/update/delete require both the aircraft ID and seat ID. Seat records are always scoped to that aircraft, including deletion.
-
-### Data rules
-
-- Airports use the existing `iata_code`, `name`, `city`, and `country` columns. Codes must be three letters and are normalized to uppercase. New airports set the existing required `timezone` column to `UTC`; edits preserve its value. Actual airport timezone management is deferred to a future module.
-- Aircraft use `model`, unique `registration_number`, and `total_capacity`. Registration numbers are normalized to uppercase and accept letters, digits, and hyphens. Capacity must be a positive whole number within the unsigned integer range.
-- Seats use the existing aircraft foreign key, `seat_number`, and `cabin_class`. Seat numbers accept up to eight letters, digits, or hyphens and are normalized to uppercase. Classes are Economy and Business only. The existing unique `(aircraft_id, seat_number)` index prevents duplicates; the same number may appear on different aircraft.
-- Aircraft capacity cannot be reduced below the existing seat count. All seats count toward capacity, regardless of their existing status. Seat mutations and aircraft capacity changes use transactions and lock the aircraft row first, preventing concurrent additions from overfilling an aircraft through this application. Direct SQL writers must follow the same locking rules; cross-table seat counts are not enforced by a database CHECK constraint.
-- Deletion respects existing restrictive foreign keys. An aircraft with seats must have those seats explicitly deleted first. Records referenced by existing related data cannot be deleted; the UI displays a conflict message. No automatic cascading deletion is added.
-
-Validation failures return 422 and preserve entered values. Missing, malformed, or mismatched IDs return 404. Delete conflicts return 409. Database queries use prepared statements and displayed values are escaped.
-
-### Test Module 3
-
-With MySQL and the PHP development server running, use another Laragon terminal:
-
-```powershell
-php scripts/test_inventory.php http://127.0.0.1:8000
-php scripts/test_auth.php http://127.0.0.1:8000
-php scripts/test_schema.php
-```
-
-The inventory test creates unique local fixtures, tests all CRUD flows, required/invalid fields, duplicates, every Module 3 route's guest/customer protection, CSRF requirements, seat-parent mismatches, capacity limits, and two simultaneous seat insertions using separate PHP processes. A cleanup block removes only its test users, airports, aircraft, and seats. The server and test runner must use the same development database configuration. A forcibly terminated test may leave fixtures behind.
-
-Local verification: 103 Module 3 checks, 37 authentication checks, and 11 schema checks passed; all PHP files passed lint. The migration also passed a second invocation.
-
-## Module 4: Admin flight management
-
-Sign in at `/admin/login` and choose Flights. Admins can list, add, edit, delete, and view flights. The list shows flight number, route codes/cities, aircraft model/registration, departure, arrival, fare/currency, and status. Details also show full airport names, aircraft capacity, and timestamps. The form loads the existing airport and aircraft records; if fewer than two airports or no aircraft exist, it links to their management pages and disables submission.
-
-### Upgrade an existing database
-
-With application writes stopped:
-
-```powershell
 php scripts/migrate_module4.php
-```
-
-The existing `flights` table is retained. The migration changes `chk_flights_fare` from nonnegative to strictly positive and narrows status to Scheduled, Delayed, Cancelled, and Completed. Existing foreign keys, indexes, and uniqueness rules remain. No tables are added. The script refuses to change a database containing zero/negative fares or `departed` flights; review those records first. It does not silently rewrite flight data. MySQL DDL is not transactional. The command is repeat-safe and works after a fresh current-schema import.
-
-The local database has already been upgraded. Fresh installations should use the current `database/schema.sql` instead of replaying migrations or reimporting tables.
-
-### Routes
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/admin/flights` | Flight list |
-| GET | `/admin/flights/create` | Add form |
-| GET | `/admin/flights/edit?id=…` | Edit form |
-| GET | `/admin/flights/show?id=…` | Flight details |
-| POST | `/admin/flights` | Create flight |
-| POST | `/admin/flights/update?id=…` | Update flight |
-| POST | `/admin/flights/delete?id=…` | Delete flight |
-
-All seven endpoints reuse the admin role guard. Guests redirect to admin login; customers receive 403. Mutations require valid session CSRF tokens, and GET cannot delete a flight. Missing or malformed flight IDs return 404; validation errors return 422 with form values preserved. Existing restrictive foreign keys block deletion of flights with dependent records, returning 409. No cascading deletion is added.
-
-### Flight rules
-
-- Flight numbers accept 1–12 letters, digits, or hyphens and are normalized to uppercase. The existing unique `(flight_number, departure_at)` index prevents duplicates for the same departure instant, including on edit, while allowing recurring flight numbers at different departures.
-- Departure airport, arrival airport, and aircraft must be existing records. Airports must differ. Database foreign keys also protect against a selected record disappearing between validation and saving.
-- All form inputs, list dates, detail dates, and stored flight dates use **UTC**. Enter UTC values explicitly; no browser-local or airport-local time conversion is performed. Dates must be valid within MySQL DATETIME's year range, and arrival must be strictly after departure. Minute and second precision are supported; edit forms preserve seconds. Historical flights are allowed.
-- Fare is a positive decimal with up to two fractional digits, from `0.01` through `9999999999.99`. Validation and persistence use decimal strings to preserve exact cents. New flights use the existing PKR currency default; editing preserves their stored currency. There is no currency-management feature in this module.
-- The only statuses are Scheduled, Delayed, Cancelled, and Completed. No booking workflows or customer search routes are introduced. Aircraft schedule-overlap checks are outside this module's requested validation.
-
-### Test Module 4
-
-With the local PHP development server and MySQL running, use a second Laragon terminal:
-
-```powershell
-php scripts/test_flights.php http://127.0.0.1:8000
-php scripts/test_inventory.php http://127.0.0.1:8000
-php scripts/test_auth.php http://127.0.0.1:8000
-php scripts/test_schema.php
-```
-
-The flight test makes actual HTTP requests for CRUD, details, required fields, dates, references, positive/exact fares, every supported status, duplicate prevention, admin protection, and CSRF. It verifies that flights protect referenced airports and aircraft from deletion. Unique test users, airports, aircraft, and flights are removed in a cleanup block. Use a development database shared by the server and test runner; forced termination can leave fixtures behind.
-
-Local verification: all 52 PHP files passed lint; 75 flight checks, 103 inventory checks, 37 authentication checks, and 12 schema checks passed. The Module 4 migration also passed a second invocation.
-
-## Module 5: Customer flight search
-
-Open `/flights` using the Search flights link in the header or home page. Guests and signed-in customers can browse without logging in; admins may also preview these public pages. Existing admin management routes remain protected. This module adds only GET routes, with no customer mutation endpoints:
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/flights` | Search form |
-| GET | `/flights?from_airport_id=…&to_airport_id=…&travel_date=YYYY-MM-DD` | Search results |
-| GET | `/flights/show?id=…` | Available flight details |
-
-Search requires two different existing active airports and a valid date today or later. Invalid, partial, or array-valued input returns 422 with useful errors and preserved form values. A valid search with no matching flights returns 200 with a no-results message. The form and all flight dates/times explicitly use UTC, consistent with Module 4. Airport-local date conversion is not introduced.
-
-The query selects the requested route and UTC departure calendar day using an indexed date range from `00:00:00` through `23:59:59`, ordered by departure time. Flights must be Scheduled, have a departure later than the current UTC time, use active airports and an active aircraft, and have at least one available seat. Delayed, Cancelled, and Completed flights are excluded.
-
-Available seats are actual configured active aircraft seats without a reserved/confirmed `booking_seats` allocation for that flight. Released allocations do not occupy seats; allocations on other flights do not affect the count. Capacity alone does not create available seats: an aircraft with no active configured seats has no customer-search availability. This reads existing tables only; no booking or passenger workflows are implemented.
-
-Results show flight number, route and airport names, departure/arrival UTC times, aircraft model, exact fare/currency, available seats, status, and a View flight link. Customer details repeat these fields without admin edit/delete controls or a booking button. The detail query repeats availability checks, so sold-out, inactive, unavailable, past-departure, missing, or malformed flight IDs return a customer-friendly 404. The return link restores the corresponding route/date search.
-
-All input values are bound parameters, displayed data is escaped, and POST requests to search/details return 405. GET browsing never updates flights, reserves seats, or creates bookings. Availability is a current snapshot and can change before a future booking module. No schema or migration changes are required for Module 5.
-
-### Test Module 5
-
-With the PHP development server and MySQL running, use a second Laragon terminal:
-
-```powershell
-php scripts/test_search.php http://127.0.0.1:8000
-```
-
-The test creates uniquely named reference/flight fixtures and temporary existing allocation-table fixtures to check availability; it adds no booking endpoints. It verifies valid/no-result/invalid searches, UTC midnight boundaries, date filtering, status exclusions, inactive/unconfigured aircraft, available-seat counts, sold-out transitions, details, escaped output, POST rejection, admin protection, and unchanged flight data/timestamps after browsing. Its cleanup block removes only its fixtures, including allocation/passenger/booking records. Use a local development database with the same configuration as the server. Forced termination may leave fixtures behind.
-
-Local verification: 43 search checks, 75 flight checks, 103 inventory checks, 37 authentication checks, and 12 schema checks passed. All 57 PHP files passed lint.
-
-## Module 6: Booking and passenger details
-
-Logged-in customers can choose Start booking on a customer flight details page. Guests are redirected to customer login and admins cannot use customer booking routes. After logging in, return to the selected flight and open its booking form.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/bookings/create?flight_id=…` | Passenger form for an available flight |
-| POST | `/bookings?flight_id=…` | Create booking and passenger |
-| GET | `/bookings/show?id=…` | Owner-only booking summary |
-
-Each submission creates one booking for one flight and one passenger. Required passenger fields are full name, CNIC/passport, date of birth, gender, and phone. Names accept letters, spaces, apostrophes, periods, and hyphens, up to 160 characters. CNICs require 13 digits, with optional standard hyphens; hyphens are removed for storage. Passports accept 6–20 alphanumeric characters including a letter. Date of birth must be a valid date from 1900 through today in UTC. Phone numbers require 7–15 digits; leading plus, spaces, parentheses, and hyphens are supported.
-
-Before creating records, the server locks the flight and rechecks the existing Module 5 Scheduled/upcoming/active/seat-availability conditions. A single transaction inserts the booking and passenger; failures roll back both. Customer ID comes from authentication; fare/currency come from the current flight, ignoring submitted price, status, or customer IDs. A random 14-character `SR` reference/PNR is protected by the existing unique index, with collision retries. Database status remains `pending`, displayed as **Pending Payment**.
-
-A session-bound random booking token is scoped to its selected flight and expires after 30 minutes. Up to 20 recent forms are retained per session. Its SHA-256 hash is stored in a unique nullable `bookings.submission_key`; retries redirect to the same booking instead of inserting another passenger/booking. Successful retries remain recoverable even after the original form expires. A new form represents a new booking. POST requires CSRF protection. The summary is accessible only to the owning active customer; another customer's ID returns 404. Validation failures preserve entered values without storing them in the session.
-
-The summary includes PNR, all passenger fields, flight/route/times, the fare captured at booking, and Pending Payment status. Flight schedule information is read from the current flight record. This module does **not** reserve a seat or guarantee future seat availability; it creates no `booking_seats`, payment, ticket, or cancellation records. Seat allocation and later confirmation remain future modules.
-
-### Database upgrade
-
-Stop application writes and run:
-
-```powershell
 php scripts/migrate_module6.php
-```
-
-The local database has already been upgraded. No tables are added. The migration adds nullable `bookings.submission_key` plus a unique index, and nullable passenger `full_name`, `gender`, and `phone`. Existing passenger names are backfilled from first/last names; legacy first/last columns are still populated for compatibility. Nullable columns preserve existing Module 1–5 records and fixtures. The script is repeat-safe; MySQL DDL is not transactional. New installations can import the current schema directly.
-
-### Test Module 6
-
-With the development server and MySQL running, use another Laragon terminal:
-
-```powershell
-php scripts/test_bookings.php http://127.0.0.1:8000
-```
-
-Tests cover successful bookings, required/invalid passenger fields, guest/admin protection, CSRF, invalid/unavailable flights, changes after opening the form, unique PNRs, customer/passenger relationships, ownership, duplicate submissions, transactional rollback, and absence of seat/payment creation. Uniquely named fixtures are removed in cleanup; use the same local development database for the server and runner.
-
-Local verification: 42 booking checks and all 270 previous-module checks passed. All 65 PHP files passed lint, and the migration passed two invocations.
-
-## Module 7: Seat selection
-
-From an owned booking summary, choose **View / select seats**, choose the passenger and an available seat, then save. Successful selection returns to the summary, which shows the seat number and class. The responsive map distinguishes available seats, saved selections for this booking, and booked/inactive seats. Saved assignments cannot be changed through this module.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/bookings/seats?booking_id=…` | Owner-only seat map |
-| POST | `/bookings/seats?booking_id=…` | Assign selected passenger and seat |
-
-Both routes require an authenticated customer. Guests go to login, admins receive 403, and inaccessible/missing bookings receive 404. POST requires the existing session CSRF token. Selection requires a pending or confirmed, unexpired booking, a future Scheduled or Delayed flight, active aircraft/airports, an active passenger belonging to the booking, and an active seat belonging to the flight's aircraft. Past, Cancelled, and Completed flights are blocked. Repeated submissions and a second assignment for the same passenger are rejected.
-
-Assignment runs in one database transaction, locking the flight, booking, aircraft, passenger, seat, and applicable allocation records. Eligibility and occupancy are rechecked after locking. Competing selections on the same flight serialize on its flight row. Existing composite foreign keys enforce the booking/flight, passenger/booking, flight/aircraft, and seat/aircraft relationships. The unique `(flight_id, occupied_seat_id)` constraint prevents two reserved/confirmed assignments occupying the same flight seat; unique `(booking_id, passenger_id)` prevents duplicate passenger assignment. Aircraft locking also coordinates with existing admin seat/capacity changes. A conflict rolls back without replacing an existing assignment.
-
-The assignment is stored as `reserved` in the existing `booking_seats` table. Booking status stays **Pending Payment** for a new booking; no payment, ticket, or cancellation records are created. Existing search availability automatically subtracts reserved seats for that flight. No schema changes or migrations are needed.
-
-### Test Module 7
-
-With the development server and MySQL running, use another Laragon terminal:
-
-```powershell
-php scripts/test_seat_selection.php http://127.0.0.1:8000
-```
-
-Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownership and role protection, CSRF, invalid passenger/booking/flight states, duplicate submissions, summary rendering, and concurrent allocation. The concurrency test uses two independent PHP/PDO processes contending for one seat while a third connection holds the flight lock; it verifies exactly one winner and one allocation. The test creates and removes uniquely named local fixtures. Use the same development database for the server and test runner.
-
-Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
-
-Modules 8–12 are implemented below. The implemented scope ends at Module 12.
-
-## SkyReserve interface refresh
-
-Modules 1–7 share a responsive presentation layer using plain CSS and vanilla JavaScript. Business controllers/models, routes, schema, and database behavior are unchanged by the refresh.
-
-The design tokens in `public/assets/css/app.css` define Orange `#FA991C`, Soft Background `#FBF3F2`, Teal `#1C768F`, and Deep Navy `#032539`. Shared components cover typography, spacing, cards, buttons, fields, tables, badges, notices, empty states, and seat tiles. The layout in `app/Views/layouts/base.php` provides the SkyReserve header/footer, customer navigation, skip link, and an admin sidebar with active navigation. Login/register, profile, home, search/results/details, bookings, existing seat selection, admin dashboard, CRUD pages, and error pages use the same system. No external fonts, UI frameworks, or build step are needed.
-
-`public/assets/js/app.js` handles the mobile menu (including Escape/outside-click dismissal), existing delete confirmations, native validation feedback, and submit loading indicators. It preserves native form controls and submission; browser Back/Forward restores loading indicators. Navigation and forms work without JavaScript. The former admin-only confirmation script is consolidated into this shared script.
-
-### Browser presentation checks
-
-With MySQL and the PHP development server running, use Node 22+ and Chrome for the optional browser checks:
-
-```powershell
-node scripts/test_ui.mjs http://127.0.0.1:8000
-```
-
-If PHP is not on PATH, pass its executable path as the third argument. The default Chrome path is the standard Windows installation; set `SKYRESERVE_TEST_CHROME` for another installation. Node/Chrome are test tools only; the application still runs with plain PHP and its existing requirements.
-
-The test uses a temporary Chrome profile and uniquely named, disposable MySQL fixtures via the CLI-only `scripts/test_ui_fixtures.php`. It removes its records in cleanup and saves screenshots in a temporary directory printed on completion. Run only against the local development database shared by the server and test runner; forced termination can leave test fixtures behind.
-
-Local verification: 234 browser checks passed across 25 pages at phone (375px), tablet (768px), and desktop (1440px) widths. Checks cover document overflow, associated form labels, unique IDs, main landmarks/headings, sampled text contrast, mobile navigation, native form feedback, delete confirmation, loading-state recovery, and reduced motion. These automated checks supplement visual review; they are not a full accessibility audit. All 312 Modules 1–6 checks and 36 Module 7 checks passed; all 70 PHP files and both JavaScript files passed syntax checks.
-
-## Module 8: Manual payment submission
-
-Open an owned booking summary and choose **Submit payment**. The page shows the PNR, amount due in the booking's currency, airline instructions, and payment fields. Demo bank/account details are supplied for coursework; configure `PAYMENT_BANK_NAME`, `PAYMENT_ACCOUNT_NAME`, `PAYMENT_ACCOUNT_NUMBER`, and `PAYMENT_INSTRUCTIONS` in the ignored `.env` to replace them. These values are escaped when displayed. The application does not send money or contact a payment provider.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/bookings/payment?booking_id=…` | Owner-only payment form |
-| POST | `/bookings/payment?booking_id=…` | Save payment and optional receipt |
-| GET / HEAD | `/payments/receipt?id=…` | Owner-authorized receipt image |
-
-Only authenticated customers can use these routes. Guests go to customer login, admins receive 403, and another customer's/missing booking or receipt receives 404. POST requires the existing session CSRF token. Bookings must have `pending` status, be unexpired, and belong to an upcoming Scheduled or Delayed flight using active aircraft and airports. Cancelled, expired, confirmed, payment-submitted, past-flight, Cancelled-flight, and Completed-flight cases cannot submit.
-
-Payment method uses the existing Bank transfer / Cash / Other options. Amount must be positive, fit DECIMAL(12,2), and have at most two decimal places. The payment date must be a valid date from 1900 through today in UTC. Transaction/reference numbers are required, accept 1–120 letters/digits/spaces or `. _ : / -`, and are never interpreted as HTML. Cash payments use a cash receipt reference. Submitted amounts are recorded as entered for later review; matching the fare does not automatically verify payment. Currency and customer/booking association come from the owned booking, ignoring submitted status/currency/customer overrides.
-
-The transaction locks the flight, booking, and aircraft in the existing seat-selection order, then rechecks eligibility and active payment records. It inserts a `pending` payment and sets booking status to `payment_submitted`, displayed as **Payment Submitted / Awaiting Verification**. The unique generated active-booking index prevents two pending/verified payments for one booking, including concurrent requests. Duplicate submissions return 409. No booking or seat is confirmed, and no ticket/cancellation is created. Existing seat selection remains available for a valid booking while payment awaits verification.
-
-### Private receipt storage
-
-Receipts are optional. Server-side validation requires a genuine PHP upload, an actual size of at most 5 MiB, an allowed JPG/JPEG/PNG/WEBP extension matching the `finfo` MIME, and a successfully decoded image. Browser MIME is ignored. Corrupt images, embedded PHP/script markers, and images exceeding 6000 pixels per side or 12 megapixels are rejected. GD re-encodes accepted images to remove metadata/trailing content; the processed image must also fit the size limit. GD needs JPEG/PNG/WEBP support.
-
-Files are created with random 48-hex-character names, never original filenames, in `storage/payment_receipts/` outside the executable/public document root. Only a relative `payment_receipts/<random>.<extension>` path is stored in `payments.proof_path`. Files are created exclusively with restrictive permissions where supported. Storage paths and symlinks are checked, and failed writes/transactions remove their newly created file. `.gitignore` excludes receipt files while tracking `.gitkeep`; `storage/.htaccess` denies HTTP access and removes script handlers as an Apache safeguard. Continue serving only `public/`, do not expose storage through web aliases, and grant the PHP process write access to this private directory.
-
-The summary provides an ID-based receipt link. The controller checks customer ownership before resolving the stored filename and streaming a validated image MIME with inline disposition, `nosniff`, a restrictive content security policy, and private/no-store caching. HEAD checks the same ownership without sending the body. Raw storage/filesystem paths are not exposed in customer pages or errors.
-
-For CGI/FPM, `public/.user.ini` sets `upload_max_filesize=5M`, `post_max_size=8M`, and `memory_limit=128M`. For Apache module hosting, apply equivalent PHP configuration in `php.ini`. For the development server, use the `php -d` command under Run the foundation above; the built-in server does not apply `.user.ini`. Restart the server after changing PHP configuration.
-
-### Database upgrade and tests
-
-For an existing installation, stop application writes and run:
-
-```powershell
 php scripts/migrate_module8.php
-```
-
-The local database is already upgraded. The repeat-safe migration adds `payment_submitted` to the existing bookings status enum, nullable `payments.payment_date` for legacy compatibility, and generated `payments.active_booking_id` with unique `uq_payments_active_booking`. Pending/verified rows occupy that index; rejected/refunded historical rows do not. Existing records are preserved. Duplicate historical active payments cause a preflight refusal for manual review. MySQL DDL is not transactional; back up before upgrading. New installations use the updated eleven-table schema directly. The SQL file `database/migrations/008_manual_payment_submission.sql` describes the one-time upgrade; use the PHP runner for repeat-safe checks.
-
-With MySQL and the configured development server running:
-
-```powershell
-php scripts/test_payments.php http://127.0.0.1:8000
-node scripts/test_ui.mjs http://127.0.0.1:8000
-```
-
-Payment tests use unique fixtures and include real multipart uploads, valid JPG/JPEG/PNG/WEBP images (including a valid image over 2 MiB), extension/MIME mismatch, unsafe/script/corrupt/oversized uploads, validation, role/ownership/CSRF protection, receipt GET/HEAD authorization, pending summary, duplicate/database constraint checks, and two independent PDO processes racing to submit one payment. Two temporary booking-scoped MySQL triggers force insert and booking-update failures to verify rollback and file cleanup. These tests need CREATE TRIGGER/DROP TRIGGER permissions on the local development database. Triggers, records, and receipt/media fixtures are removed in cleanup; forced termination can leave fixtures behind.
-
-Local verification: 97 Module 8 checks and all 348 Modules 1–7 checks passed. Both migration invocations succeeded. All 78 PHP files passed lint. The extended UI suite passed 253 Chrome checks across 27 pages, including native payment submission, payment form/summary layout, labels, text contrast, and overflow at 375/768/1440px. Screenshots are saved to a temporary directory printed by the browser test.
-
-New files: `PaymentController.php`, `Payment.php`, `PaymentReceipt.php`, customer payment form/error views, `config/payments.php`, Module 8 SQL/CLI migration, `scripts/test_payments.php`, `public/.user.ini`, and private storage access/placeholder files. Updated files: booking controller/summary, seat-booking status compatibility, routes, schema, shared CSS, environment template, ignore rules, browser tests/fixtures, and this README.
-
-## Module 9: Admin payment verification
-
-Sign in at `/admin/login`, then choose **Payments**. The dashboard shows the pending-payment count. The payment list defaults to Pending and provides Pending / Verified / Rejected filters. Details show the customer, PNR, flight/route/times, passenger, amount due, amount submitted, method, transaction reference, payment date, protected receipt link, payment status, and review audit information.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/admin/payments?status=pending` | List payments; also accepts `verified` or `rejected` |
-| GET | `/admin/payments/show?id=…` | Payment and booking details |
-| GET / HEAD | `/admin/payments/receipt?id=…` | Admin-authorized receipt image |
-| POST | `/admin/payments/verify?id=…` | Verify payment and confirm booking |
-| POST | `/admin/payments/reject?id=…` | Reject payment and return booking to Pending Payment |
-
-All routes require an active admin. Guests redirect to admin login; customers receive 403. Mutations require a session CSRF token and POST. Missing/malformed payment IDs return 404; invalid filters or rejection reasons return 422; invalid or repeated transitions return 409. Review forms ask for confirmation through the shared vanilla JavaScript and remain usable without JavaScript.
-
-Only a `pending` payment belonging to a `payment_submitted` booking can be reviewed. Verification changes the payment to `verified` and the booking to `confirmed`, recording the authenticated admin in the existing `reviewed_by` column and the UTC timestamp in `reviewed_at`. It rechecks that the booking is unexpired and the flight is upcoming, Scheduled or Delayed, and uses active aircraft and airports. Admins compare the submitted amount and receipt with the amount due; no automatic amount-based approval occurs.
-
-Rejection changes the payment to `rejected` and the booking to `pending` (Pending Payment). An optional plain-text reason of up to 1000 characters is stored in `review_notes` and displayed escaped on both admin details and the owning customer's booking summary. The existing Module 8 form permits a new submission while the booking remains eligible; the rejected record remains immutable history. Flight validity and booking expiry are preserved. Cancelled, expired, or already confirmed bookings cannot be reviewed or restored through these actions.
-
-Payment and booking updates run in one transaction, locking the flight, booking, aircraft, and payment in the existing submission order. The active reviewer is checked under a shared lock. Eligibility is rechecked after locking, so competing admin decisions have one winner and repeat actions cannot overwrite the audit record. Failed writes roll back both statuses and audit fields. The existing active-payment unique index prevents a second pending/verified submission for the same booking.
-
-Admin receipts use the existing private storage and safe image-streaming helper after authorization. The customer receipt route remains owner-only. Both support protected HEAD requests, private/no-store caching, validated image MIME, and `nosniff`; neither exposes the stored filesystem path. No receipt files are moved or changed by review.
-
-### Database usage and tests
-
-No schema change or migration is needed. Module 9 reuses `payments.reviewed_by`, `reviewed_at`, and `review_notes`, existing payment/booking statuses, and the reviewer foreign key to `users`. Verification creates no ticket and does not change seat allocations. Rejection creates no cancellation or refund.
-
-With MySQL and the configured development server running, use another terminal:
-
-```powershell
-php scripts/test_payment_reviews.php http://127.0.0.1:8000
-node scripts/test_ui.mjs http://127.0.0.1:8000
-```
-
-Run against the local development database shared by the server and test runner. Review tests create unique users, flights, bookings, payments, and a private receipt. They cover filters, escaped details/reasons, receipt GET/HEAD authorization, successful verify/reject, customer resubmission after rejection, audit identity/timestamp, invalid/repeated transitions, roles, CSRF, expiry and flight validity, and transaction rollback. A temporary booking-scoped MySQL trigger forces a failed booking update; CREATE TRIGGER/DROP TRIGGER permissions are needed for this local test. Independent PHP/PDO processes also race verify against reject and assert exactly one succeeds. Fixtures, receipt, and trigger are removed in cleanup; forced termination can leave test data behind.
-
-Local verification: **74 Module 9 checks and all 445 Modules 1–8 checks passed**. All 83 PHP files passed lint. The browser suite passed **301 Chrome checks across 32 pages** at 375/768/1440px, including payment filters/details, active admin navigation, and native verification. It checks labels, landmarks, text contrast, overflow, and existing JavaScript interactions; screenshots supplement these checks rather than constituting a full accessibility audit.
-
-Created: `AdminPaymentController.php`, three `app/Views/admin/payments/` views, and `scripts/test_payment_reviews.php`. Updated: `Payment.php`, shared receipt streaming and customer receipt controller, admin dashboard/controller/navigation, customer booking summary, routes, shared CSS, browser tests, and this README.
-
-## Module 10: Ticket generation
-
-After payment verification, the customer can open the booking summary and choose **Generate ticket**. Admins can issue or view tickets from the related payment detail page. Generation is explicit: payment verification itself does not issue tickets. After issuance, the summary and admin payment detail page provide ticket links. The ticket includes SkyReserve branding, a unique ticket number, PNR, passenger name and CNIC/passport, flight number, full departure/arrival airports, UTC departure/arrival times, seat/class, fare captured at booking, booking/ticket status, and issuance time.
-
-| Method | Route | Access / purpose |
-| --- | --- | --- |
-| POST | `/bookings/tickets?booking_id=…` | Customer owner; generate booking tickets |
-| GET / HEAD | `/tickets/show?id=…` | Customer owner; view and print ticket |
-| GET / HEAD | `/tickets/download?id=…` | Customer owner; download printable HTML |
-| POST | `/admin/bookings/tickets?booking_id=…` | Active admin; generate from payment flow |
-| GET / HEAD | `/admin/tickets/show?id=…` | Active admin; view related ticket |
-| GET / HEAD | `/admin/tickets/download?id=…` | Active admin; download related ticket |
-
-Every request checks the current active user and route role. Guests redirect to the appropriate login; wrong-role access returns 403. Inaccessible/missing ticket or booking IDs return 404, including HEAD requests. POST issuance requires a session CSRF token. GET browsing and downloads never generate records. Invalid eligibility or duplicate generation returns 409; failed writes return a generic 503 without exposing database or filesystem details.
-
-Issuance requires a Confirmed booking and an existing Verified payment. The flight must still be Scheduled or Delayed and upcoming, and the aircraft active. Every passenger must be active, have a name and identity document, and have an active reserved/confirmed seat allocation matching the booking's flight and aircraft. Released, missing, or inactive seats are rejected. All passengers are validated before inserting any ticket; a single transaction issues one ticket per passenger and rolls back all inserts on failure. A ticket already issued for any passenger blocks another batch rather than replacing existing tickets.
-
-The transaction follows the existing flight → booking → aircraft/payment locking order and locks passenger, allocation, seat, and ticket rows while rechecking eligibility. Active actor/ownership is checked again inside the transaction. Concurrent issuance for one booking serializes, producing one winner. Ticket numbers use `SR-T-` plus 24 random hexadecimal characters, with bounded collision retries and the existing unique index. User-supplied numbers/statuses are ignored. Booking, payment, and seat-allocation statuses remain unchanged by issuance.
-
-### Printing and download
-
-The shared ticket document is used by customer/admin views and the download. **Print ticket** calls the browser print dialog, where the customer can print or choose Save as PDF. `public/assets/css/ticket.css` provides responsive layout and A4 print rules that hide navigation, sidebar, buttons, notices, and footer while retaining the complete ticket.
-
-**Download ticket (HTML)** returns an authorized attachment containing escaped ticket details and embedded ticket CSS, with no external assets or scripts. It works offline and can be printed from the browser. Responses are private/no-store and use a restrictive content security policy. This module adds no PDF package or frontend framework; PDF export uses browser printing. Issued tickets remain viewable after departure.
-
-### Database usage and tests
-
-No schema changes or migration are needed. The existing `tickets` table stores ticket number, allocation reference, status, issuance time, and timestamps. `uq_tickets_number` guarantees unique numbers; `uq_tickets_booking_seat` and the existing one-allocation-per-passenger constraint prevent duplicate passenger tickets. Composite allocation foreign keys protect booking/passenger/flight/aircraft/seat consistency. Ticket details read the existing linked booking/passenger/flight/seat records; this module does not introduce an immutable document snapshot or new storage directory.
-
-With MySQL and the development server running, use another terminal:
-
-```powershell
-php scripts/test_tickets.php http://127.0.0.1:8000
-node scripts/test_ui.mjs http://127.0.0.1:8000
-```
-
-Tests use unique disposable local fixtures shared with the server's database. They cover multi-passenger issuance, unique numbers and database constraints, unverified/unconfirmed states, missing/invalid passengers and seats, wrong-aircraft constraints, departed/unavailable flights, duplicates, customer ownership, admin access, CSRF, escaped content, booking/payment links, and private printable HTML GET/HEAD downloads. Two independent PDO processes race issuance and assert one winner. A temporary allocation-scoped MySQL trigger forces the second insert to fail and verifies complete rollback; local CREATE TRIGGER/DROP TRIGGER privileges are needed. Fixtures and trigger are removed in cleanup; forced termination may leave test data behind.
-
-Local verification: **78 Module 10 checks and all 519 Modules 1–9 checks passed**. The browser suite passed **336 Chrome checks across 35 pages** at 375/768/1440px, including native issuance, owner/admin views, active navigation, print-button behavior, a one-page A4 PDF, and self-contained HTML download. All 93 PHP files and both JavaScript files passed syntax checks. Browser artifacts include ticket screenshots, a printable PDF, and the downloaded HTML in the temporary directory printed by the test.
-
-Created: `TicketController.php`, `Ticket.php`, shared/customer/admin ticket views, `public/assets/css/ticket.css`, and `scripts/test_tickets.php`. Updated: booking and admin payment controllers/views, shared layout/admin navigation, routes, vanilla JavaScript print interaction, browser tests/fixture cleanup, and this README.
-
-## Module 11: My Bookings and cancellation
-
-Logged-in customers can open **My Bookings** in the shared navigation. `/bookings` shows only the current customer's bookings, ordered by departure descending. All/Pending Payment/Awaiting Verification/Confirmed/Cancellation Requested/Cancelled/Expired filters are available. Cards show PNR, flight/route, departure UTC, passenger names, active seat/class, fare captured at booking, latest payment status, and booking status. Each card links to its booking summary and issued tickets, including clearly labelled void tickets. Empty filters provide a flight-search link. Customer names and all database text are escaped.
-
-| Method | Route | Access / purpose |
-| --- | --- | --- |
-| GET / HEAD | `/bookings?status=all` | Signed-in customer; own booking list and optional status filter |
-| GET / HEAD | `/bookings/cancel?booking_id=…` | Booking owner; confirmation/reason form |
-| POST | `/bookings/cancel?booking_id=…` | Booking owner; submit cancellation request |
-| GET / HEAD | `/admin/cancellations?status=pending` | Admin; Pending / Approved / Rejected request list |
-| GET / HEAD | `/admin/cancellations/show?id=…` | Admin; request, booking, passenger, seat, payment, and ticket details |
-| POST | `/admin/cancellations/approve?id=…` | Admin; approve cancellation |
-| POST | `/admin/cancellations/reject?id=…` | Admin; reject cancellation |
-
-The existing POST `/bookings?flight_id=…` creation route is unchanged. List/search filters never mutate data. Guests redirect to the appropriate login; wrong-role access receives 403. Another customer's booking receives 404, including HEAD requests. POST actions require CSRF. Invalid filters/reasons/notes receive 422; missing/malformed IDs receive 404; duplicate requests or invalid transitions receive 409; unexpected save failures return a generic 503. Model methods also recheck the current active user's role/ownership. All IDs, reviewer identity, previous booking status, and decisions come from authenticated/server data rather than form overrides.
-
-### Cancellation flow
-
-From an eligible booking summary, choose **Request cancellation**, review its details, optionally enter a reason, then confirm. The shared JavaScript asks for confirmation; without JavaScript the dedicated review form and Confirm cancellation request button still provide an explicit confirmation step. Reasons and admin notes accept up to 1000 UTF-8 characters, reject unsafe control characters, and are displayed as escaped plain text.
-
-Requests are available for Pending Payment, Awaiting Verification, and Confirmed bookings on an upcoming Scheduled or Delayed flight. Cancelled, expired, already-requested, departed, Cancelled-flight, Completed-flight, and used-ticket bookings are blocked. Unconfirmed bookings with an expired payment deadline are also blocked. Confirmed bookings are not treated as unpaid solely because an old payment deadline has passed.
-
-Submission stores the owner, reason, and exact previous booking status in `cancellations`, then sets booking status to `cancellation_requested`, displayed as **Cancellation Requested**. Seats stay reserved and existing tickets stay valid while admin review is pending. Existing guards block new payment submission, payment verification, seat selection, and ticket issuance while that status is active. The owner sees request history and admin notes on the booking summary.
-
-Admins use the new **Cancellations** navigation item; the dashboard shows its pending count. Only a Pending request attached to a Cancellation Requested booking with a recorded valid previous status can be reviewed. Approval requires an upcoming Scheduled/Delayed flight and no used ticket. It marks the request Approved and booking Cancelled, releases reserved/confirmed seat allocations, and changes valid tickets to Void. Voided tickets remain available as historical records and show an explicit invalid-for-travel warning on screen, print, and download. Released seats can be assigned to another booking through existing seat selection.
-
-Rejection marks the request Rejected and restores exactly its saved previous booking status. It preserves seat assignments, tickets, and payment records. A customer can submit a new request if the restored booking remains eligible; rejected records remain immutable history. Repeated review actions cannot overwrite prior decisions or audit metadata. Rejection can resolve a request even after its flight has departed, preserving the original booking state rather than cancelling a completed journey.
-
-Both decisions record the authenticated admin ID, UTC review timestamp, and optional note using existing audit columns. Payment rows, receipt files, and `refund_amount` are unchanged. No automatic refund, refund submission, payment provider, check-in, or boarding-pass workflow is added.
-
-Submission and review use one transaction for request/booking updates, following the existing flight → booking → aircraft lock order and locking relevant request/user/ticket/allocation rows. Competing requests or reviews serialize; status and ownership are rechecked after waiting. The generated active-booking unique index also prevents two pending requests at the database level. Approval failure rolls back the request, booking, released seats, and voided tickets together.
-
-### Database upgrade
-
-Stop application writes and back up the database, then run:
-
-```powershell
 php scripts/migrate_module11.php
 ```
 
-The local workspace database has already been upgraded and the runner passed two invocations. No tables are added. The migration extends `bookings.status` with `cancellation_requested`, adds nullable `cancellations.previous_booking_status`, and adds generated `active_booking_id` with unique `uq_cancellations_active_booking` for Pending requests. It replaces the old lifetime-unique booking index with an ordinary booking index, allowing rejected-request history. Existing requester/reviewer foreign keys, audit columns, reason, and manual refund amount remain intact.
+These repeat-safe scripts check existing structure before applying changes. Module 11 refuses legacy pending cancellation records whose previous booking status is unknown; resolve those manually first. MySQL DDL is not transactional. Fresh installations using the current schema do not need these upgrades.
 
-The runner checks for duplicate pending requests and refuses an old installation containing pending requests whose original status was never recorded; resolve those legacy requests manually before upgrading rather than guessing a restore state. Historical Approved/Rejected records remain preserved with nullable previous status. The runner is repeat-safe and can resume partially applied DDL; MySQL DDL is not transactional. Fresh installations import the updated `database/schema.sql` into an empty database. `database/migrations/011_booking_cancellations.sql` documents the one-time SQL; prefer the PHP runner for preflight and repeat-safe checks.
+## Routes and workflows
 
-### Test Module 11
+| Area | Main routes |
+| --- | --- |
+| Public | `/`, `/register`, `/login`, `/flights`, `/flights/show?id=…` |
+| Customer | `/profile`, `/bookings`, `/bookings/create?flight_id=…`, `/bookings/show?id=…` |
+| Booking actions | `/bookings/seats`, `/bookings/payment`, `/bookings/cancel` with `booking_id` |
+| Customer documents | `/payments/receipt?id=…`, `/tickets/show?id=…`, `/tickets/download?id=…` |
+| Admin operations | `/admin`, `/admin/airports`, `/admin/aircraft`, `/admin/seats`, `/admin/flights`, `/admin/payments`, `/admin/cancellations` |
+| Admin reports | `/admin/reports` and `/bookings`, `/flights`, `/payments`, `/cancellations`, `/passengers` beneath it |
+| Admin documents | `/admin/payments/receipt`, `/admin/tickets/show`, `/admin/tickets/download` with `id` |
 
-With MySQL and the configured development server running, use another terminal:
+See `routes/web.php` for every action. Mutations require POST and CSRF tokens; logout is POST only. HEAD uses GET authorization without a response body.
+
+Booking progression: **Pending Payment → Payment Submitted → Confirmed** after administrator verification. Rejection returns it to Pending Payment. Cancellation Requested holds the existing seat/ticket state until review; approval cancels and releases/voids it, while rejection restores the saved previous status. Confirmed bookings ignore former payment deadlines. Transactions and unique constraints guard concurrent submissions and issuance.
+
+All application dates/times and date filters use **UTC**. Airport timezones are metadata; displayed times are not converted. Reports use inclusive date boundaries and 50-row pagination. Booking/payment/cancellation reports filter creation/submission/request dates; flight/passenger reports filter departure dates. Verified revenue is gross verified payment value grouped by currency and includes cancelled bookings until payments are manually handled. Ticket details use current related records, not immutable snapshots. Downloads are self-contained printable HTML; the browser can print or save as PDF.
+
+## Security and hosting
+
+- Serve **only `public/`**. For Apache, set `DocumentRoot` and its matching `<Directory>` to the public path with `AllowOverride All`, `Require all granted`, and `mod_rewrite`. Root/storage access is denied; hidden public files are blocked.
+- Use HTTPS. Ensure PHP receives the correct `HTTPS` setting, including behind a trusted reverse proxy, so session cookies use `Secure`. Cookies also use HttpOnly/SameSite=Lax; login regenerates session IDs and rotates CSRF tokens.
+- Keep `.env`, database credentials, logs, and exports private. Use deployment-specific credentials and writable private session/receipt storage. Errors go to server logs; users receive safe messages. The development server is for local use.
+- Receipts are optional JPEG/PNG/WEBP images up to **5 MB**, checked with `finfo`, decoded and re-encoded, and stored under random filenames outside the web root. Corrupted/script-bearing uploads are rejected; failed database saves delete new files. Viewing requires ownership or an authorized admin route.
+- Role/ownership checks, prepared statements, escaped HTML, transactional status checks, and database constraints protect customer/admin actions. No automatic refunds or automatic ticket issuance occurs.
+
+The UI uses the SkyReserve navy/orange/teal theme, responsive layouts, SVG sidebar icons, sticky navigation, a fixed desktop admin sidebar, native accessible filters, and role-aware footer links. Search/report filters submit valid changes automatically after a short debounce. Required search inputs must be complete before automatic submission. Report fields fit in one desktop row and reflow on smaller screens; clearing fields removes their filters. Reports have no Apply/Reset controls when JavaScript is enabled; an Update report button provides a fallback when it is disabled. Table actions and report shortcuts use consistent buttons without underlines. Enhanced dropdowns open below their field and scroll within the available space; older browsers retain operating-system native picker placement. Short screens can scroll the sidebar internally; mobile navigation reflows into the page. Reduced-motion and print styles are provided.
+
+Shared Back/Cancel buttons link to explicit parent pages. Plain JavaScript provides SweetAlert-style confirmation dialogs for saves, submissions, destructive actions, and leaving edited forms. Dialogs support keyboard focus and Escape; older browsers use native confirmation. Reloading or closing a changed form uses the browser's unsaved-changes prompt. JavaScript confirmations supplement server-side validation, permissions, CSRF, and duplicate protection; they do not replace them.
+
+## Tests
+
+Use a **local development database**, with the server above running and the same `.env` for server and CLI. Test fixtures are removed on completion; forced termination can leave records behind. Do not run tests against production data.
 
 ```powershell
-php scripts/test_cancellations.php http://127.0.0.1:8000
+$tests = @('schema', 'auth', 'inventory', 'flights', 'search', 'bookings', 'seat_selection', 'payments', 'payment_reviews', 'tickets', 'cancellations', 'reports')
+foreach ($test in $tests) {
+    php "scripts/test_$test.php" http://127.0.0.1:8000
+    if ($LASTEXITCODE -ne 0) { throw "Failed: $test" }
+}
 node scripts/test_ui.mjs http://127.0.0.1:8000
+if ($LASTEXITCODE -ne 0) { throw 'Browser checks failed' }
 ```
 
-Use the same local development database for the server and tests. The cancellation suite creates unique users, flight, bookings, seats, payments, and tickets. It covers owner-only listing/filtering, content and escaping, request confirmation/validation, ownership/role/CSRF protection, duplicate active requests, status restrictions, admin approval/rejection, restoration of all three previous statuses, history after retries, unchanged payment fields, seat reuse, void-ticket warnings, and independent PDO processes racing request/review. A temporary booking-scoped MySQL trigger forces write failures to verify full transactional rollback; CREATE TRIGGER/DROP TRIGGER privileges are needed locally. Fixtures and trigger are removed in cleanup; forced termination can leave test data behind.
+The browser runner accepts a third argument for `php.exe`; set `SKYRESERVE_TEST_CHROME` to override Chrome's executable path. Screenshots are saved in the temporary directory printed by the runner. Integration coverage includes authentication, CRUD, search, booking relationships, concurrent seat/payment/ticket/cancellation operations, uploads and rollback cleanup, authorization/CSRF, reports, responsive layouts, form interactions, and ticket printing.
 
-Local verification: **115 Module 11 checks and all 597 Modules 1–10 checks passed**. The UI suite passed **468 Chrome checks across 49 pages** at 375/768/1440px, including native request/rejection/approval, dismissible confirmation, submitter `formaction`, active navigation, empty/history states, cancellation summary, and void ticket. All 105 PHP files and both JavaScript files passed syntax checks. The migration passed twice, its unknown-legacy-state preflight was tested, and the fresh schema imported successfully into a disposable eleven-table database. Screenshots are written to the temporary directory printed by the browser test; automated checks supplement visual review and are not a full accessibility audit.
-
-Created: customer/admin cancellation controllers, `Cancellation.php`, My Bookings and cancellation form/history/error/list/detail views, Module 11 SQL/CLI migration, and `scripts/test_cancellations.php`. Updated: booking list/controller/summary/status labels, admin dashboard/navigation and payment status display, customer navigation, ticket status/warning display, shared/print CSS, routes, schema, schema/browser tests and fixture cleanup, and this README.
-
-## Module 12: Admin dashboard and reports
-
-Sign in at `/admin/login`, then open the dashboard at `/admin`. Its eight metric cards show:
-
-| Metric | Definition |
-| --- | --- |
-| Total customers | Every `users` record with role Customer, including inactive customers; excludes admins |
-| Total flights | Every stored flight, including historical/cancelled flights |
-| Upcoming flights | Scheduled or Delayed flights with departure strictly after the current UTC time |
-| Total bookings | Every booking, across all statuses |
-| Confirmed bookings | Bookings whose current status is exactly Confirmed |
-| Pending payments | Every payment whose current status is Pending |
-| Pending cancellation requests | Every cancellation request whose current status is Pending |
-| Total verified revenue | Exact sum of Verified payment amounts, separately for each currency |
-
-Verified revenue is gross recorded payments. A manual cancellation leaves a verified payment unchanged, so it remains in this total; Refunded, Rejected, and Pending payments are excluded. Different currencies are never added together or converted. SQL DECIMAL sums are displayed without floating-point conversion. Existing management links and pending-payment/cancellation counts remain available alongside a new Reports link. The dashboard uses responsive CSS cards without chart frameworks or new dependencies.
-
-### Reports and routes
-
-All six new routes are GET/HEAD and require an active admin:
-
-| Route | Content and filters |
-| --- | --- |
-| `/admin/reports` | Report directory |
-| `/admin/reports/bookings` | PNR, customer, flight/route, booking/departure timestamps, passenger/active-seat/valid-ticket counts, captured fare, booking status, latest payment status; date, flight, booking-status, latest-payment-status filters |
-| `/admin/reports/flights` | Flight/route, aircraft/registration, departure/arrival, base fare, active/occupied/unassigned seat counts, total bookings, status; date, flight, flight-status filters |
-| `/admin/reports/payments` | Each submission including history, PNR/customer/flight, amount/currency, method/reference, payment date, submission/review timestamps, payment and booking status; date, flight, payment-status, booking-status filters |
-| `/admin/reports/cancellations` | Each request including rejected history, PNR/customer/flight, reason, request/current-booking/previous-booking statuses, reviewer/time/note; date, flight, cancellation-status, booking-status filters |
-| `/admin/reports/passengers` | Selected flight's passengers, identity document, phone, PNR, departure, seat/class and allocation status, passenger/booking status, ticket number/status/link; date, required flight, booking-status filters |
-
-Passenger reports initially ask the admin to select a flight and do not expose an unfiltered passenger list. They retain historical cancelled/released/void and unassigned records with explicit status columns. Filter Booking status to Confirmed when reviewing confirmed travelers. This report is not a check-in or boarding-pass feature.
-
-All report forms provide Start date, End date, Flight, relevant status selectors, Apply filters, and Reset. Query keys are `start_date`, `end_date`, `flight_id`, the relevant `booking_status` / `payment_status` / `flight_status` / `cancellation_status`, and `page`. Blank dates leave that boundary unrestricted. The date range uses UTC and includes both boundary days, including midnight and 23:59:59:
-
-- Bookings: booking creation timestamp.
-- Flights and passenger lists: flight departure timestamp.
-- Payments: submission/creation timestamp; the payment date is displayed separately.
-- Cancellations: request/creation timestamp.
-
-Bookings report payment status means the latest payment submission, including Refunded history; Not submitted matches bookings with no payment rows. The payments report includes all submission statuses, including Refunded. Flight seat counts describe active configured seats and reserved/confirmed allocations; they do not imply that a past/cancelled flight is eligible for customer search.
-
-Tables have captions, column headers, status badges, keyboard-focusable horizontal scrolling, empty states, and full filtered record counts. They display at most 50 rows per page. Previous/Next retain all validated filters; out-of-range positive pages clamp to the final page to avoid unnecessary large offsets. Booked value totals include all matching booking statuses and are not revenue. Payment totals show submitted and verified amounts separately. Monetary totals are per currency and cover every matching record, not only the visible page.
-
-### Security, performance, and database usage
-
-Guests redirect to admin login; signed-in customers receive 403. HEAD requests execute the same authorization checks and return no body. POST to report routes returns 405. Reports introduce no mutation endpoints or CSRF exemptions; existing POST workflows and session protections remain unchanged.
-
-Validation runs in both the controller flow and report model: dates must be real YYYY-MM-DD dates in MySQL's date range, ranges cannot be reversed, flight IDs must be positive existing IDs, statuses must match the selected report, and page numbers must be positive whole numbers no greater than 1,000,000. Array inputs, unsupported query keys, and malformed values return 422 and show an error without silently displaying an unfiltered report. User/database values are escaped, including filter values, names, reasons, notes, and query strings. SQL identifiers and ordering are fixed internal definitions; values use prepared statements, with integer LIMIT/OFFSET bindings.
-
-Dashboard metrics use independent aggregates rather than a multi-table join. Reports use one bounded row query, a matching count query, and monetary totals where needed. One-to-many passenger/seat/ticket data is pre-aggregated before joining bookings; latest payment joins select one row per booking. Passenger seat/ticket joins reuse existing unique keys. There are no per-row database calls or N+1 query loops. Existing indexes and foreign keys are reused. No schema change, table, migration, or business-status behavior is added by Module 12.
-
-### Test Module 12
-
-With MySQL and the development server running, use another local terminal:
-
-```powershell
-php scripts/test_reports.php http://127.0.0.1:8000
-node scripts/test_ui.mjs http://127.0.0.1:8000
-```
-
-The report suite uses unique disposable users, flights, bookings, passengers, allocations, payments, tickets, and cancellation history. It checks all metric deltas, exact multi-currency sums, no aggregate inflation from multiple passengers/payments/requests, report contents, UTC date boundaries and open-ended ranges, every relevant status filter, no-payment matching, 50-row pagination/full-result totals, passenger-by-flight joins, historical/unassigned cases, empty states, invalid/array/injection filters, admin-only GET/HEAD access, and POST rejection. A before/after database snapshot verifies that report browsing changes no fixture business records. Fixtures are removed in cleanup; use the same local development database for the server/test runner. Forced termination can leave fixtures behind.
-
-Local verification: **170 Module 12 checks and all 712 Modules 1–11 regression checks passed**. The UI suite passed **562 Chrome checks across 59 pages** at 375/768/1440px, including dashboard metrics, all report types, labels/headings/contrast/overflow, empty/error states, active navigation, native filter submission/reset, cancellation history, and existing customer/admin workflows. All 112 PHP files and both JavaScript files passed syntax checks. Screenshots are saved to the temporary directory printed by the browser test; automated checks supplement visual review rather than a full accessibility audit.
-
-Regression testing found that Module 8's random large-PNG test fixture could coincidentally contain `<?=` bytes, correctly triggering the existing script-upload guard. The size-acceptance fixture now regenerates such images with bounded retries; intentional unsafe-upload tests remain intact. Application upload validation and payment behavior were not changed.
-
-Created: `AdminReportController.php`, `AdminReport.php`, four shared report views, and `scripts/test_reports.php`. Updated: admin dashboard/controller/navigation, routes, shared CSS, browser tests, the large-image payment test fixture, and this README.
-
-No additional modules are implemented after Module 12.
+Before deployment, manually verify Apache/TLS configuration, permissions, real payment instructions, cross-browser printing, and keyboard/screen-reader accessibility. Automated local checks supplement these reviews.

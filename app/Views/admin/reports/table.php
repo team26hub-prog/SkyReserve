@@ -20,6 +20,6 @@ $columns = match ($type) {
         <?php elseif ($format === 'ticket' && $value): ?><a href="/admin/tickets/show?id=<?= (int) $row['ticket_id'] ?>"><?= $escape($value) ?></a>
         <?php else: ?><?= $value === null ? ($key === 'payment_status' ? 'Not submitted' : 'Not provided') : $escape((string) $value) ?><?php endif; ?>
     </td><?php endforeach; ?>
-    <?php if (in_array($type,['flights','payments','cancellations'],true)): ?><td><a href="/admin/<?= $type ?>/show?id=<?= (int) $row['id'] ?>">View details</a></td><?php endif; ?>
+    <?php if (in_array($type,['flights','payments','cancellations'],true)): ?><td><a class="button button-secondary" href="/admin/<?= $type ?>/show?id=<?= (int) $row['id'] ?>">View details</a></td><?php endif; ?>
 </tr><?php endforeach; ?>
 </tbody></table></div>

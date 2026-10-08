@@ -2,15 +2,19 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/bootstrap.php';
-
 header('Content-Type: text/html; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
+header('Cache-Control: no-store');
+
+// Suppress every HEAD response body, including bootstrap failures.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+    ob_start(static fn (string $body): string => '');
+}
 
 try {
+    require dirname(__DIR__) . '/bootstrap.php';
     App\Core\Session::start();
-    header('Cache-Control: no-store');
     $routes = require BASE_PATH . '/routes/web.php';
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -38,10 +42,7 @@ try {
         exit;
     }
 
-    // HEAD must execute the same access checks as GET, while suppressing its body.
-    if ($method === 'HEAD') {
-        ob_start(static fn (string $body): string => '');
-    }
+    // HEAD executes the same access checks as GET.
     [$controller, $action] = $route;
     (new $controller())->$action();
 } catch (Throwable $exception) {

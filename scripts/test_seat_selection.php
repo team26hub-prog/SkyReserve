@@ -155,6 +155,14 @@ try {
     $db->prepare("UPDATE bookings SET status = 'pending' WHERE id = ?")->execute([$bookingIds[1]]);
     $db->prepare("UPDATE bookings SET expires_at = '2000-01-01 00:00:00' WHERE id = ?")->execute([$bookingIds[1]]);
     $assert($request($customer, 'GET', $path2)['status'] === 409, 'expired booking deadline blocked');
+    $summary = $request($customer, 'GET', '/bookings/show?id=' . $bookingIds[1]);
+    $assert(!str_contains($summary['body'], '/bookings/seats?booking_id=') && !str_contains($summary['body'], '/bookings/payment?booking_id='), 'expired unpaid summary hides unavailable seat/payment links');
+    $db->prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ?")->execute([$bookingIds[1]]);
+    $assert($request($customer, 'GET', $path2)['status'] === 200, 'confirmed booking ignores its former payment deadline');
+    $confirmed = $second; $confirmed['seat_id'] = $seatIds['1B'];
+    $assert($request($customer, 'POST', $path2, $confirmed)['status'] === 303, 'confirmed booking can assign a seat after its former payment deadline');
+    $db->prepare('DELETE FROM booking_seats WHERE booking_id = ?')->execute([$bookingIds[1]]);
+    $db->prepare("UPDATE bookings SET status = 'pending' WHERE id = ?")->execute([$bookingIds[1]]);
     $db->prepare('UPDATE bookings SET expires_at = NULL WHERE id = ?')->execute([$bookingIds[1]]);
     $db->prepare("UPDATE aircraft SET status = 'inactive' WHERE id = ?")->execute([$aircraftIds[0]]);
     $assert($request($customer, 'GET', $path2)['status'] === 409, 'inactive aircraft blocked');

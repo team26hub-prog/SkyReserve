@@ -19,10 +19,23 @@ final class Booking extends Model
             WHERE b.user_id = ?" . ($status === 'all' ? '' : ' AND b.status = ?') . ' ORDER BY f.departure_at DESC, b.id DESC');
         $query->execute($status === 'all' ? [$customerId] : [$customerId,$status]);
         $rows = $query->fetchAll();
+        if (!$rows) return [];
+        // Fetch each relationship once, rather than three extra queries per booking.
+        $related = [
+            'passengers' => 'SELECT p.* FROM passengers p JOIN bookings b ON b.id = p.booking_id',
+            'assignments' => 'SELECT bs.*, s.seat_number, s.cabin_class FROM booking_seats bs JOIN seats s ON s.id = bs.seat_id JOIN bookings b ON b.id = bs.booking_id',
+            'tickets' => 'SELECT t.*, bs.passenger_id, bs.booking_id FROM tickets t JOIN booking_seats bs ON bs.id = t.booking_seat_id JOIN bookings b ON b.id = bs.booking_id',
+        ];
+        $grouped = [];
+        foreach ($related as $key => $sql) {
+            $query = $this->db()->prepare($sql . ' WHERE b.user_id = ?' . ($status === 'all' ? '' : ' AND b.status = ?') . ' ORDER BY ' . match ($key) {
+                'passengers' => 'p.id', 'assignments' => 'bs.id', 'tickets' => 't.id',
+            });
+            $query->execute($status === 'all' ? [$customerId] : [$customerId, $status]);
+            foreach ($query->fetchAll() as $record) $grouped[$key][$record['booking_id']][] = $record;
+        }
         foreach ($rows as &$row) {
-            $row['passengers'] = (new Passenger())->forBooking((int) $row['id']);
-            $row['assignments'] = (new BookingSeat())->forBooking((int) $row['id']);
-            $row['tickets'] = (new Ticket())->forBooking((int) $row['id']);
+            foreach ($related as $key => $sql) $row[$key] = $grouped[$key][$row['id']] ?? [];
         }
         unset($row); return $rows;
     }
