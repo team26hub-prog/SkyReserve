@@ -1,7 +1,9 @@
 <?php $flight = $data['flight']; $values = $data['values']; ?>
+<span class="eyebrow">Your booking · Passenger information</span>
 <h1>Passenger details</h1>
-<p><strong><?= $escape($flight['flight_number'] . ' — ' . $flight['origin_code'] . ' → ' . $flight['destination_code']) ?></strong></p>
-<p>Departure: <?= $escape($flight['departure_at']) ?> UTC<br>Fare: <?= $escape($flight['currency'] . ' ' . $flight['base_fare']) ?></p>
+<div class="card booking-context"><p><strong><?= $escape($flight['flight_number'] . ' — ' . $flight['origin_code'] . ' → ' . $flight['destination_code']) ?></strong></p>
+<p>Departure: <?= $escape($flight['departure_at']) ?> UTC<br>Fare: <?= $escape($flight['currency'] . ' ' . $flight['base_fare']) ?></p></div>
+<p class="muted">Enter passenger details as they appear on the travel document. Fields marked * are required.</p>
 <?php if ($data['errors']): ?><div class="notice error" role="alert"><ul><?php foreach ($data['errors'] as $error): ?><li><?= $escape($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <form class="account-form" action="/bookings?flight_id=<?= (int) $flight['id'] ?>" method="post">
     <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">

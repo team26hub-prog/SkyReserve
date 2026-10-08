@@ -1,3 +1,4 @@
+<span class="eyebrow">Operations · Fleet</span>
 <div class="page-heading"><h1>Aircraft</h1><a class="button" href="/admin/aircraft/create">Add aircraft</a></div>
 <p class="muted">Manage each aircraft’s capacity and seats. Remove its seats before deleting an aircraft.</p>
 <?php require BASE_PATH . '/app/Views/admin/partials/errors.php'; ?>
@@ -6,6 +7,7 @@
 <?php else: ?>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Aircraft list">
         <table>
+            <caption class="sr-only">Aircraft fleet, seat capacity, and management actions</caption>
             <thead><tr><th scope="col">Name/model</th><th scope="col">Registration</th><th scope="col">Seats / capacity</th><th scope="col">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($data['aircraft'] as $aircraft): ?>

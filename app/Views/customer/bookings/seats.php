@@ -1,5 +1,7 @@
 <?php $booking = $data['booking']; $assigned = array_column($data['assignments'], 'passenger_id'); ?>
+<span class="eyebrow">Your booking · Seat preference</span>
 <h1>Select a seat</h1>
+<p class="muted">Choose a passenger, select an available seat, and save your selection.</p>
 <p><?= $escape($booking['booking_reference'] . ' — ' . $data['flight']['flight_number'] . ' — ' . $data['flight']['aircraft_model']) ?></p>
 <?php if ($data['error']): ?><div class="notice error" role="alert"><?= $escape($data['error']) ?></div><?php endif; ?>
 <p class="seat-legend"><span>Available</span><span class="legend-selected">Selected for this booking</span><span class="legend-unavailable">Booked / unavailable</span></p>

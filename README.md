@@ -379,3 +379,25 @@ Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownersh
 Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
 
 Module 8 requires explicit approval before implementation.
+
+## SkyReserve interface refresh
+
+Modules 1–7 share a responsive presentation layer using plain CSS and vanilla JavaScript. Business controllers/models, routes, schema, and database behavior are unchanged by the refresh.
+
+The design tokens in `public/assets/css/app.css` define Orange `#FA991C`, Soft Background `#FBF3F2`, Teal `#1C768F`, and Deep Navy `#032539`. Shared components cover typography, spacing, cards, buttons, fields, tables, badges, notices, empty states, and seat tiles. The layout in `app/Views/layouts/base.php` provides the SkyReserve header/footer, customer navigation, skip link, and an admin sidebar with active navigation. Login/register, profile, home, search/results/details, bookings, existing seat selection, admin dashboard, CRUD pages, and error pages use the same system. No external fonts, UI frameworks, or build step are needed.
+
+`public/assets/js/app.js` handles the mobile menu (including Escape/outside-click dismissal), existing delete confirmations, native validation feedback, and submit loading indicators. It preserves native form controls and submission; browser Back/Forward restores loading indicators. Navigation and forms work without JavaScript. The former admin-only confirmation script is consolidated into this shared script.
+
+### Browser presentation checks
+
+With MySQL and the PHP development server running, use Node 22+ and Chrome for the optional browser checks:
+
+```powershell
+node scripts/test_ui.mjs http://127.0.0.1:8000
+```
+
+If PHP is not on PATH, pass its executable path as the third argument. The default Chrome path is the standard Windows installation; set `SKYRESERVE_TEST_CHROME` for another installation. Node/Chrome are test tools only; the application still runs with plain PHP and its existing requirements.
+
+The test uses a temporary Chrome profile and uniquely named, disposable MySQL fixtures via the CLI-only `scripts/test_ui_fixtures.php`. It removes its records in cleanup and saves screenshots in a temporary directory printed on completion. Run only against the local development database shared by the server and test runner; forced termination can leave test fixtures behind.
+
+Local verification: 234 browser checks passed across 25 pages at phone (375px), tablet (768px), and desktop (1440px) widths. Checks cover document overflow, associated form labels, unique IDs, main landmarks/headings, sampled text contrast, mobile navigation, native form feedback, delete confirmation, loading-state recovery, and reduced motion. These automated checks supplement visual review; they are not a full accessibility audit. All 312 Modules 1–6 checks and 36 Module 7 checks passed; all 70 PHP files and both JavaScript files passed syntax checks.

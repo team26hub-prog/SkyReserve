@@ -1,6 +1,7 @@
 <?php $isAdmin = $data['role'] === 'admin'; ?>
+<span class="eyebrow"><?= $isAdmin ? 'SkyReserve operations' : 'Welcome back' ?></span>
 <h1><?= $escape($data['title']) ?></h1>
-<p class="muted"><?= $isAdmin ? 'Sign in with your administrator account.' : 'Sign in to view your customer profile.' ?></p>
+<p class="muted"><?= $isAdmin ? 'Sign in with your administrator account.' : 'Sign in to manage your journey and choose your seat.' ?></p>
 <?php if (isset($data['error'])): ?>
     <div class="notice error" role="alert"><?= $escape($data['error']) ?></div>
 <?php endif; ?>

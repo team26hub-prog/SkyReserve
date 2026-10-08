@@ -1,6 +1,7 @@
 <?php $errors = $data['errors'] ?? []; $old = $data['old'] ?? []; ?>
+<span class="eyebrow">Your journey starts here</span>
 <h1>Create your account</h1>
-<p class="muted">Register as a customer to access your profile.</p>
+<p class="muted">One account for your profile, bookings, and seat selection.</p>
 <?php if ($errors): ?>
     <div class="notice error" role="alert">
         <p>Please check the following:</p>

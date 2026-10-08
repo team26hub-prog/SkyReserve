@@ -1,4 +1,5 @@
 <?php $flight = $data['flight']; ?>
+<span class="eyebrow">Operations · Flight details</span>
 <h1>Flight <?= $escape($flight['flight_number']) ?></h1>
 <p><?= $escape($flight['origin_code']) ?> → <?= $escape($flight['destination_code']) ?></p>
 <dl class="profile-details">
@@ -9,7 +10,7 @@
     <dt>Departure (UTC)</dt><dd><?= $escape($flight['departure_at']) ?></dd>
     <dt>Arrival (UTC)</dt><dd><?= $escape($flight['arrival_at']) ?></dd>
     <dt>Fare</dt><dd><?= $escape($flight['currency'] . ' ' . $flight['base_fare']) ?></dd>
-    <dt>Status</dt><dd><?= $escape(ucfirst($flight['status'])) ?></dd>
+    <dt>Status</dt><dd><span class="badge" data-status="<?= $escape($flight['status']) ?>"><?= $escape(ucfirst($flight['status'])) ?></span></dd>
     <dt>Created (UTC)</dt><dd><?= $escape($flight['created_at']) ?></dd>
     <dt>Updated (UTC)</dt><dd><?= $escape($flight['updated_at']) ?></dd>
 </dl>

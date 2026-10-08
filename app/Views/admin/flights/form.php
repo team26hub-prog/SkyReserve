@@ -1,4 +1,5 @@
 <?php $record = $data['record']; $editing = !empty($record['id']); $missingReferences = count($data['airports']) < 2 || !$data['aircraft']; ?>
+<span class="eyebrow">Operations · Flight information</span>
 <h1><?= $escape($data['title']) ?></h1>
 <p class="muted">Enter departure and arrival times in UTC. Fare currency: <?= $escape($record['currency'] ?? 'PKR') ?>.</p>
 <?php if ($missingReferences): ?>

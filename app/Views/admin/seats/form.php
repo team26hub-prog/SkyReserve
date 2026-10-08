@@ -1,4 +1,5 @@
 <?php $record = $data['record']; $editing = !empty($record['id']); $aircraftId = (int) $data['aircraft']['id']; ?>
+<span class="eyebrow">Operations · Seat information</span>
 <h1><?= $escape($data['title']) ?></h1>
 <p><?= $escape($data['aircraft']['model']) ?> · <?= $escape($data['aircraft']['registration_number']) ?></p>
 <p class="muted"><?= (int) $data['aircraft']['seat_count'] ?> of <?= (int) $data['aircraft']['total_capacity'] ?> seats configured.</p>

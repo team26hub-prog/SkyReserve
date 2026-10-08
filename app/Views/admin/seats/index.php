@@ -1,4 +1,5 @@
 <?php $aircraft = $data['aircraft']; $aircraftId = (int) $aircraft['id']; ?>
+<span class="eyebrow">Operations · Cabin configuration</span>
 <div class="page-heading"><h1>Aircraft seats</h1><a class="button" href="/admin/seats/create?aircraft_id=<?= $aircraftId ?>">Add seat</a></div>
 <p><strong><?= $escape($aircraft['model']) ?></strong> · <?= $escape($aircraft['registration_number']) ?></p>
 <p><?= (int) $aircraft['seat_count'] ?> of <?= (int) $aircraft['total_capacity'] ?> seats configured. <a href="/admin/aircraft/edit?id=<?= $aircraftId ?>">Edit capacity</a></p>
@@ -8,11 +9,12 @@
 <?php else: ?>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Seat list">
         <table>
+            <caption class="sr-only">Seats configured for this aircraft</caption>
             <thead><tr><th scope="col">Seat number</th><th scope="col">Seat class</th><th scope="col">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($data['seats'] as $seat): ?>
                 <tr>
-                    <td><?= $escape($seat['seat_number']) ?></td><td><?= $escape(ucfirst($seat['cabin_class'])) ?></td>
+                    <td><strong><?= $escape($seat['seat_number']) ?></strong></td><td><span class="badge"><?= $escape(ucfirst($seat['cabin_class'])) ?></span></td>
                     <td><div class="row-actions">
                         <a href="/admin/seats/edit?aircraft_id=<?= $aircraftId ?>&amp;id=<?= (int) $seat['id'] ?>">Edit</a>
                         <form action="/admin/seats/delete?aircraft_id=<?= $aircraftId ?>&amp;id=<?= (int) $seat['id'] ?>" method="post" data-confirm="Delete this seat?">

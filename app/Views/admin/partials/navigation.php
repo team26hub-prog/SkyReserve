@@ -1,6 +1,14 @@
+<?php
+$adminLinks = [
+    '/admin' => ['Overview', '◈'],
+    '/admin/airports' => ['Airports', '⌖'],
+    '/admin/aircraft' => ['Aircraft & seats', '↗'],
+    '/admin/flights' => ['Flights', '⇄'],
+];
+?>
 <nav class="admin-nav" aria-label="Admin navigation">
-    <a href="/admin">Admin home</a>
-    <a href="/admin/airports">Airports</a>
-    <a href="/admin/aircraft">Aircraft &amp; seats</a>
-    <a href="/admin/flights">Flights</a>
+    <?php foreach ($adminLinks as $path => [$label, $symbol]):
+        $active = $path === '/admin' ? $currentPath === $path : ($currentPath === $path || str_starts_with($currentPath, $path . '/') || ($path === '/admin/aircraft' && str_starts_with($currentPath, '/admin/seats'))); ?>
+        <a href="<?= $path ?>"<?= $active ? ' aria-current="page"' : '' ?>><span aria-hidden="true"><?= $symbol ?></span><?= $escape($label) ?></a>
+    <?php endforeach; ?>
 </nav>

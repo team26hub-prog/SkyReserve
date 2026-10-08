@@ -1,4 +1,5 @@
 <?php $flight = $data['flight']; ?>
+<span class="eyebrow">Flight details · Your next journey</span>
 <h1>Flight <?= $escape($flight['flight_number']) ?></h1>
 <p><strong><?= $escape($flight['origin_code'] . ' → ' . $flight['destination_code']) ?></strong></p>
 <dl class="profile-details">
@@ -9,7 +10,7 @@
     <dt>Aircraft</dt><dd><?= $escape($flight['aircraft_model']) ?></dd>
     <dt>Fare</dt><dd><?= $escape($flight['currency'] . ' ' . $flight['base_fare']) ?></dd>
     <dt>Available seats</dt><dd><?= (int) $flight['available_seats'] ?></dd>
-    <dt>Status</dt><dd><?= $escape(ucfirst($flight['status'])) ?></dd>
+    <dt>Status</dt><dd><span class="badge" data-status="<?= $escape($flight['status']) ?>"><?= $escape(ucfirst($flight['status'])) ?></span></dd>
 </dl>
 <p class="muted">Availability is current at the time of viewing and may change.</p>
 <?php if (!$data['user'] || $data['user']['role'] === 'customer'): ?>

@@ -1,0 +1,140 @@
+// Dependency-free Chrome DevTools checks. Node 22+ is used only by this test tool.
+import { spawn, execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const base = new URL(process.argv[2] || 'http://127.0.0.1:8000');
+if (base.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(base.hostname) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw new Error('Use a local server URL.');
+const php = process.argv[3] || 'php';
+const fixtureScript = join(dirname(fileURLToPath(import.meta.url)), 'test_ui_fixtures.php');
+const chromePath = process.env.SKYRESERVE_TEST_CHROME || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const artifacts = mkdtempSync(join(tmpdir(), 'skyreserve-ui-'));
+const profile = join(artifacts, 'chrome-profile');
+const port = 9300 + Math.floor(Math.random() * 500);
+const chrome = spawn(chromePath, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-background-networking', 'about:blank'], { windowsHide: true, stdio: 'ignore' });
+chrome.on('error', (error) => { console.error(error.message); });
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let fixture, ws, sequence = 0, checks = 0;
+const pending = new Map();
+const assert = (condition, message) => { if (!condition) throw new Error(message); checks++; };
+const command = (method, params = {}) => new Promise((resolve, reject) => {
+    const id = ++sequence;
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Timed out: ${method}`)); }, 15000);
+    pending.set(id, { resolve, reject, timer });
+    ws.send(JSON.stringify({ id, method, params }));
+});
+const evaluate = async (expression) => {
+    const result = await command('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+    return result.result.value;
+};
+const ready = async (path) => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+        try { if (await evaluate(`document.readyState === 'complete' && location.pathname === ${JSON.stringify(new URL(path, base).pathname)}`)) return; } catch {}
+        await pause(100);
+    }
+    throw new Error(`Page did not load: ${path}`);
+};
+const visit = async (path) => { await command('Page.navigate', { url: new URL(path, base).href }); await ready(path); await pause(80); };
+const audit = () => {
+    const visible = (el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
+    const controls = [...document.querySelectorAll('input:not([type="hidden"]), select, textarea')];
+    const unlabeled = controls.filter((el) => !el.labels?.length && !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby')).map((el) => el.name);
+    const ids = [...document.querySelectorAll('[id]')].map((el) => el.id);
+    const rgb = (value) => (value.match(/[\d.]+/g) || []).map(Number);
+    const luminance = (color) => color.slice(0, 3).map((v) => { const c = v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((total, v, index) => total + v * [.2126, .7152, .0722][index], 0);
+    const contrastIssues = [];
+    for (const el of document.querySelectorAll('h1, h2, h3, p, a, button, label, dt, dd, small, .badge')) {
+        if (!visible(el) || el.disabled || !el.textContent.trim()) continue;
+        const style = getComputedStyle(el);
+        let parent = el, background = [255, 255, 255];
+        while (parent) {
+            const color = rgb(getComputedStyle(parent).backgroundColor);
+            if (color.length === 3 || color[3] === 1) { background = color; break; }
+            parent = parent.parentElement;
+        }
+        const foreground = rgb(style.color), l1 = luminance(foreground), l2 = luminance(background);
+        const ratio = (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05);
+        const large = parseFloat(style.fontSize) >= 24 || (parseFloat(style.fontSize) >= 18.66 && Number(style.fontWeight) >= 700);
+        if (ratio < (large ? 3 : 4.5)) contrastIssues.push({ text: el.textContent.trim().slice(0, 35), ratio: ratio.toFixed(2) });
+    }
+    return { overflow: document.documentElement.scrollWidth > innerWidth + 1, unlabeled, duplicateIds: ids.length !== new Set(ids).size, headings: document.querySelectorAll('h1').length, landmark: !!document.querySelector('main#main-content'), contrastIssues };
+};
+const checkPages = async (pages, group) => {
+    for (const [name, path] of pages) {
+        await visit(path);
+        for (const width of [375, 768, 1440]) {
+            await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+            const result = await evaluate(`(${audit.toString()})()`);
+            assert(!result.overflow, `${name} overflows at ${width}px`);
+            assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
+            assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
+            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map'].includes(name) && width !== 768) {
+                const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
+                writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
+            }
+        }
+        console.log(`PASS: ${group}/${name}, phone/tablet/desktop, labels, landmarks, contrast`);
+    }
+};
+const signIn = async (role) => {
+    await visit(role === 'admin' ? '/admin/login' : '/login');
+    await evaluate(`document.getElementById('email').value = ${JSON.stringify(fixture[role + 'Email'])}; document.getElementById('password').value = ${JSON.stringify(fixture.password)}; document.querySelector('.account-form').requestSubmit(); true`);
+    await ready(role === 'admin' ? '/admin' : '/profile');
+};
+try {
+    let targets;
+    for (let attempt = 0; attempt < 100; attempt++) {
+        try { targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json(); if (targets.length) break; } catch {}
+        await pause(100);
+    }
+    if (!targets?.length) throw new Error('Chrome did not start. Set SKYRESERVE_TEST_CHROME to its executable path.');
+    ws = new WebSocket(targets.find((target) => target.type === 'page').webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
+    ws.addEventListener('message', (event) => {
+        const message = JSON.parse(event.data), request = pending.get(message.id);
+        if (!request) return;
+        clearTimeout(request.timer); pending.delete(message.id);
+        if (message.error) request.reject(new Error(message.error.message)); else request.resolve(message.result);
+    });
+    await command('Page.enable');
+    fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
+    const search = `/flights?from_airport_id=${fixture.from}&to_airport_id=${fixture.to}&travel_date=${fixture.date}`;
+    await checkPages([['home', '/'], ['search', '/flights'], ['search-results', search], ['login', '/login'], ['register', '/register'], ['admin-login', '/admin/login'], ['flight-details', `/flights/show?id=${fixture.flightId}`]], 'guest');
+    await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await visit('/login');
+    assert(await evaluate(`getComputedStyle(document.querySelector('.main-nav')).display === 'none'`), 'Mobile menu starts collapsed');
+    assert(await evaluate(`document.querySelector('.menu-toggle').click(); document.querySelector('.menu-toggle').getAttribute('aria-expanded') === 'true' && getComputedStyle(document.querySelector('.main-nav')).display !== 'none'`), 'Mobile menu opens');
+    assert(await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); document.querySelector('.menu-toggle').getAttribute('aria-expanded') === 'false'`), 'Escape closes menu');
+    assert(await evaluate(`document.querySelector('.account-form').requestSubmit(); !!document.querySelector('[aria-invalid="true"]') && document.querySelector('.form-feedback').textContent.includes('highlighted')`), 'Native validation gives accessible feedback');
+    await signIn('customer');
+    await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`]], 'customer');
+    await visit('/profile');
+    await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login');
+    await signIn('admin');
+    await checkPages([
+        ['dashboard', '/admin'], ['airports', '/admin/airports'], ['airport-add', '/admin/airports/create'], ['airport-edit', `/admin/airports/edit?id=${fixture.from}`],
+        ['aircraft', '/admin/aircraft'], ['aircraft-add', '/admin/aircraft/create'], ['aircraft-edit', `/admin/aircraft/edit?id=${fixture.aircraftId}`],
+        ['seats', `/admin/seats?aircraft_id=${fixture.aircraftId}`], ['seat-add', `/admin/seats/create?aircraft_id=${fixture.aircraftId}`], ['seat-edit', `/admin/seats/edit?aircraft_id=${fixture.aircraftId}&id=${fixture.seatId}`],
+        ['admin-flights', '/admin/flights'], ['flight-add', '/admin/flights/create'], ['flight-edit', `/admin/flights/edit?id=${fixture.flightId}`], ['admin-flight-details', `/admin/flights/show?id=${fixture.flightId}`],
+    ], 'admin');
+    await visit(`/admin/seats?aircraft_id=${fixture.aircraftId}`);
+    assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/aircraft'`), 'Seat pages highlight Aircraft & seats');
+    assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new Event('submit', {bubbles:true, cancelable:true}); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Cancelled delete stays on page without loading state');
+    assert(await evaluate(`(() => { window.confirm = () => true; const form = document.querySelector('form[data-confirm]'); const event = new SubmitEvent('submit', {bubbles:true, cancelable:true, submitter:form.querySelector('button')}); form.dispatchEvent(event); return form.querySelector('button').getAttribute('aria-busy') === 'true'; })()`), 'Confirmed action gets loading state');
+    assert(await evaluate(`window.dispatchEvent(new Event('pageshow')); !document.querySelector('button[aria-busy]')`), 'Back/Forward restores loading buttons');
+    await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    assert(await evaluate(`getComputedStyle(document.querySelector('button')).transitionDuration === '0s'`), 'Reduced-motion preference respected');
+    console.log(`${checks} browser UI checks passed. Screenshots: ${artifacts}`);
+} finally {
+    if (fixture) execFileSync(php, [fixtureScript, '--cleanup'], { input: JSON.stringify(fixture) });
+    if (ws) ws.close();
+    for (const request of pending.values()) { clearTimeout(request.timer); request.reject(new Error('Browser closed')); }
+    chrome.kill();
+    await pause(500);
+    // Only delete the named Chrome profile directly inside this run's temporary directory.
+    if (dirname(resolve(profile)) !== resolve(artifacts)) throw new Error('Unexpected profile cleanup path.');
+    try { rmSync(profile, { recursive: true, force: true }); } catch {}
+}

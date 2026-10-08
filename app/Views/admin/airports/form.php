@@ -1,5 +1,7 @@
 <?php $record = $data['record']; $editing = !empty($record['id']); ?>
+<span class="eyebrow">Operations · Airport information</span>
 <h1><?= $escape($data['title']) ?></h1>
+<p class="muted">Keep destination details clear and consistent. Fields marked * are required.</p>
 <?php require BASE_PATH . '/app/Views/admin/partials/errors.php'; ?>
 <form class="account-form" action="<?= $editing ? '/admin/airports/update?id=' . (int) $record['id'] : '/admin/airports' ?>" method="post">
     <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">

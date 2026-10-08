@@ -1,8 +1,9 @@
 <?php $booking = $data['booking']; $flight = $data['flight']; ?>
+<span class="eyebrow">Your journey at a glance</span>
 <h1>Booking summary</h1>
 <dl class="profile-details">
     <dt>Booking reference / PNR</dt><dd><strong><?= $escape($booking['booking_reference']) ?></strong></dd>
-    <dt>Booking status</dt><dd><?= $booking['status'] === 'pending' ? 'Pending Payment' : $escape(ucfirst($booking['status'])) ?></dd>
+    <dt>Booking status</dt><dd><span class="badge" data-status="<?= $escape($booking['status']) ?>"><?= $booking['status'] === 'pending' ? 'Pending Payment' : $escape(ucfirst($booking['status'])) ?></span></dd>
     <dt>Flight</dt><dd><?= $escape($flight['flight_number']) ?></dd>
     <dt>Route</dt><dd><?= $escape($flight['origin_name'] . ' (' . $flight['origin_code'] . ') → ' . $flight['destination_name'] . ' (' . $flight['destination_code'] . ')') ?></dd>
     <dt>Departure (UTC)</dt><dd><?= $escape($flight['departure_at']) ?></dd>

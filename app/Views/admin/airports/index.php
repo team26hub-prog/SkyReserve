@@ -1,10 +1,13 @@
+<span class="eyebrow">Operations · Destinations</span>
 <div class="page-heading"><h1>Airports</h1><a class="button" href="/admin/airports/create">Add airport</a></div>
+<p class="muted">Manage the airports that connect your airline's routes.</p>
 <?php require BASE_PATH . '/app/Views/admin/partials/errors.php'; ?>
 <?php if (!$data['airports']): ?>
     <p class="empty-state">No airports yet. Add your first airport.</p>
 <?php else: ?>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Airport list">
         <table>
+            <caption class="sr-only">Airport directory and management actions</caption>
             <thead><tr><th scope="col">Code</th><th scope="col">Airport name</th><th scope="col">City</th><th scope="col">Country</th><th scope="col">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($data['airports'] as $airport): ?>
