@@ -12,4 +12,7 @@
     <dt>Status</dt><dd><?= $escape(ucfirst($flight['status'])) ?></dd>
 </dl>
 <p class="muted">Availability is current at the time of viewing and may change.</p>
+<?php if (!$data['user'] || $data['user']['role'] === 'customer'): ?>
+    <p><a class="button" href="/bookings/create?flight_id=<?= (int) $flight['id'] ?>"><?= $data['user'] ? 'Start booking' : 'Log in to start booking' ?></a></p>
+<?php endif; ?>
 <a href="<?= $escape($data['back']) ?>">Return to matching flights</a>

@@ -11,6 +11,7 @@ use App\Controllers\AircraftController;
 use App\Controllers\SeatController;
 use App\Controllers\FlightController;
 use App\Controllers\FlightSearchController;
+use App\Controllers\BookingController;
 
 return [
     'GET' => [
@@ -20,6 +21,8 @@ return [
         '/profile' => [ProfileController::class, 'index'],
         '/flights' => [FlightSearchController::class, 'index'],
         '/flights/show' => [FlightSearchController::class, 'show'],
+        '/bookings/create' => [BookingController::class, 'create'],
+        '/bookings/show' => [BookingController::class, 'show'],
         '/admin/login' => [AuthController::class, 'adminLoginForm'],
         '/admin' => [AdminController::class, 'index'],
         '/admin/airports' => [AirportController::class, 'index'],
@@ -40,6 +43,7 @@ return [
         '/register' => [AuthController::class, 'register'],
         '/login' => [AuthController::class, 'customerLogin'],
         '/logout' => [AuthController::class, 'customerLogout'],
+        '/bookings' => [BookingController::class, 'store'],
         '/admin/login' => [AuthController::class, 'adminLogin'],
         '/admin/logout' => [AuthController::class, 'adminLogout'],
         '/admin/airports' => [AirportController::class, 'store'],

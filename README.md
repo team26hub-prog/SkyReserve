@@ -1,6 +1,6 @@
-# Airplane Ticketing System — Modules 1–5
+# Airplane Ticketing System — Modules 1–6
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds read-only customer flight search and details. Bookings, passenger workflows, customer seat selection, payments, tickets, and cancellations are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details. Customer seat selection, payment submission/verification, tickets, and cancellation workflows are not implemented.
 
 ## Requirements
 
@@ -25,12 +25,14 @@ app/
   Models/Aircraft.php                   Aircraft persistence and capacity locking
   Models/Seat.php                       Aircraft-scoped seat persistence
   Models/Flight.php                     Flight persistence, availability queries, joined details
+  Models/Booking.php                    Atomic booking creation and customer ownership
+  Models/Passenger.php                  Passenger persistence
   Views/                               Home, auth, customer, admin, errors
   Views/layouts/base.php                Shared minimal layout
 config/                                 Database settings read from environment
 .env.example                            Safe template for local settings
 .env                                    Local secrets (ignored by Git)
-database/schema.sql                     Current eleven-table schema (Modules 1–4)
+database/schema.sql                     Current eleven-table schema (Modules 1–6)
 database/migrations/                    Upgrade SQL for existing installations
 public/                                 Web document root and responsive CSS
 routes/web.php                          Explicit route definitions
@@ -43,6 +45,8 @@ scripts/test_inventory.php              CRUD, access, validation, and capacity t
 scripts/migrate_module4.php             Repeat-safe flight constraint upgrade
 scripts/test_flights.php                Flight CRUD, validation, and security tests
 scripts/test_search.php                 Customer search and availability integration tests
+scripts/migrate_module6.php             Repeat-safe passenger/submission-key upgrade
+scripts/test_bookings.php               Booking, validation, ownership, and replay tests
 bootstrap.php                           App autoloading and UTC setup
 ```
 
@@ -304,4 +308,44 @@ The test creates uniquely named reference/flight fixtures and temporary existing
 
 Local verification: 43 search checks, 75 flight checks, 103 inventory checks, 37 authentication checks, and 12 schema checks passed. All 57 PHP files passed lint.
 
-Module 6 requires explicit approval before implementation.
+## Module 6: Booking and passenger details
+
+Logged-in customers can choose Start booking on a customer flight details page. Guests are redirected to customer login and admins cannot use customer booking routes. After logging in, return to the selected flight and open its booking form.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/bookings/create?flight_id=…` | Passenger form for an available flight |
+| POST | `/bookings?flight_id=…` | Create booking and passenger |
+| GET | `/bookings/show?id=…` | Owner-only booking summary |
+
+Each submission creates one booking for one flight and one passenger. Required passenger fields are full name, CNIC/passport, date of birth, gender, and phone. Names accept letters, spaces, apostrophes, periods, and hyphens, up to 160 characters. CNICs require 13 digits, with optional standard hyphens; hyphens are removed for storage. Passports accept 6–20 alphanumeric characters including a letter. Date of birth must be a valid date from 1900 through today in UTC. Phone numbers require 7–15 digits; leading plus, spaces, parentheses, and hyphens are supported.
+
+Before creating records, the server locks the flight and rechecks the existing Module 5 Scheduled/upcoming/active/seat-availability conditions. A single transaction inserts the booking and passenger; failures roll back both. Customer ID comes from authentication; fare/currency come from the current flight, ignoring submitted price, status, or customer IDs. A random 14-character `SR` reference/PNR is protected by the existing unique index, with collision retries. Database status remains `pending`, displayed as **Pending Payment**.
+
+A session-bound random booking token is scoped to its selected flight and expires after 30 minutes. Up to 20 recent forms are retained per session. Its SHA-256 hash is stored in a unique nullable `bookings.submission_key`; retries redirect to the same booking instead of inserting another passenger/booking. Successful retries remain recoverable even after the original form expires. A new form represents a new booking. POST requires CSRF protection. The summary is accessible only to the owning active customer; another customer's ID returns 404. Validation failures preserve entered values without storing them in the session.
+
+The summary includes PNR, all passenger fields, flight/route/times, the fare captured at booking, and Pending Payment status. Flight schedule information is read from the current flight record. This module does **not** reserve a seat or guarantee future seat availability; it creates no `booking_seats`, payment, ticket, or cancellation records. Seat allocation and later confirmation remain future modules.
+
+### Database upgrade
+
+Stop application writes and run:
+
+```powershell
+php scripts/migrate_module6.php
+```
+
+The local database has already been upgraded. No tables are added. The migration adds nullable `bookings.submission_key` plus a unique index, and nullable passenger `full_name`, `gender`, and `phone`. Existing passenger names are backfilled from first/last names; legacy first/last columns are still populated for compatibility. Nullable columns preserve existing Module 1–5 records and fixtures. The script is repeat-safe; MySQL DDL is not transactional. New installations can import the current schema directly.
+
+### Test Module 6
+
+With the development server and MySQL running, use another Laragon terminal:
+
+```powershell
+php scripts/test_bookings.php http://127.0.0.1:8000
+```
+
+Tests cover successful bookings, required/invalid passenger fields, guest/admin protection, CSRF, invalid/unavailable flights, changes after opening the form, unique PNRs, customer/passenger relationships, ownership, duplicate submissions, transactional rollback, and absence of seat/payment creation. Uniquely named fixtures are removed in cleanup; use the same local development database for the server and runner.
+
+Local verification: 42 booking checks and all 270 previous-module checks passed. All 65 PHP files passed lint, and the migration passed two invocations.
+
+Module 7 requires explicit approval before implementation.

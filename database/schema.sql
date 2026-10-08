@@ -1,4 +1,4 @@
--- Current schema through Module 4. Import into an empty MySQL 8.0.16+ database.
+-- Current schema through Module 6. Import into an empty MySQL 8.0.16+ database.
 -- All times are UTC. Monetary values use the booking's currency.
 -- This is an initial schema, not a migration: existing tables cause an error.
 SET NAMES utf8mb4;
@@ -87,6 +87,7 @@ CREATE TABLE flights (
 CREATE TABLE bookings (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     booking_reference VARCHAR(20) NOT NULL,
+    submission_key CHAR(64) NULL,
     user_id BIGINT UNSIGNED NOT NULL,
     flight_id BIGINT UNSIGNED NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
@@ -96,6 +97,7 @@ CREATE TABLE bookings (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_bookings_reference (booking_reference),
+    UNIQUE KEY uq_bookings_submission (submission_key),
     UNIQUE KEY uq_bookings_id_flight (id, flight_id),
     KEY idx_bookings_user_created (user_id, created_at),
     KEY idx_bookings_flight_status (flight_id, status),
@@ -110,6 +112,9 @@ CREATE TABLE passengers (
     booking_id BIGINT UNSIGNED NOT NULL,
     first_name VARCHAR(80) NOT NULL,
     last_name VARCHAR(80) NOT NULL,
+    full_name VARCHAR(160) NULL,
+    gender ENUM('male', 'female', 'other') NULL,
+    phone VARCHAR(30) NULL,
     date_of_birth DATE NULL,
     document_number VARCHAR(50) NULL,
     status ENUM('active', 'cancelled') NOT NULL DEFAULT 'active',
