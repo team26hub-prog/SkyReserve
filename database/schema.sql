@@ -1,4 +1,4 @@
--- Current schema through Module 6. Import into an empty MySQL 8.0.16+ database.
+-- Current schema through Module 8. Import into an empty MySQL 8.0.16+ database.
 -- All times are UTC. Monetary values use the booking's currency.
 -- This is an initial schema, not a migration: existing tables cause an error.
 SET NAMES utf8mb4;
@@ -92,7 +92,7 @@ CREATE TABLE bookings (
     flight_id BIGINT UNSIGNED NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
     currency CHAR(3) NOT NULL DEFAULT 'PKR',
-    status ENUM('pending', 'confirmed', 'cancelled', 'expired') NOT NULL DEFAULT 'pending',
+    status ENUM('pending', 'confirmed', 'cancelled', 'expired', 'payment_submitted') NOT NULL DEFAULT 'pending',
     expires_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -159,7 +159,11 @@ CREATE TABLE payments (
     method ENUM('bank_transfer', 'cash', 'other') NOT NULL DEFAULT 'bank_transfer',
     transaction_reference VARCHAR(120) NULL,
     proof_path VARCHAR(255) NULL,
+    payment_date DATE NULL,
     status ENUM('pending', 'verified', 'rejected', 'refunded') NOT NULL DEFAULT 'pending',
+    active_booking_id BIGINT UNSIGNED GENERATED ALWAYS AS (
+        CASE WHEN status IN ('pending', 'verified') THEN booking_id ELSE NULL END
+    ) STORED,
     reviewed_by BIGINT UNSIGNED NULL,
     reviewed_at DATETIME NULL,
     review_notes TEXT NULL,
@@ -169,6 +173,7 @@ CREATE TABLE payments (
     KEY idx_payments_status_created (status, created_at),
     KEY idx_payments_reviewer (reviewed_by),
     KEY idx_payments_reference (transaction_reference),
+    UNIQUE KEY uq_payments_active_booking (active_booking_id),
     CONSTRAINT fk_payments_booking FOREIGN KEY (booking_id) REFERENCES bookings (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT fk_payments_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT chk_payments_amount CHECK (amount > 0)

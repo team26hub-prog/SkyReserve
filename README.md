@@ -1,10 +1,10 @@
-# SkyReserve — Modules 1–7
+# SkyReserve — Modules 1–8
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection. Payment submission/verification, tickets, and cancellation workflows are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing. Admin payment verification, tickets, and cancellation workflows are not implemented.
 
 ## Requirements
 
-- PHP 8.1+ with `pdo_mysql` and `mbstring` (`curl` is needed only for HTTP integration tests).
+- PHP 8.1+ with `pdo_mysql`, `mbstring`, `fileinfo`, and GD with JPEG/PNG/WEBP support (`curl` is needed only for HTTP integration tests).
 - MySQL 8.0.16+ (enforced CHECK constraints), using InnoDB.
 - Apache 2.4 with `mod_rewrite` for Laragon hosting, or PHP's built-in server for development.
 - No Composer, framework, or JavaScript build tools are required.
@@ -16,10 +16,12 @@ app/
   Controllers/                         Home, auth, profile, admin, airport/aircraft/seat/flight CRUD
   Controllers/FlightSearchController.php Public customer search and details
   Controllers/SeatSelectionController.php Owner-only seat map and assignment
+  Controllers/PaymentController.php     Owner-only payment submission and receipt access
   Core/Controller.php                   Rendering, redirects, role/CSRF guards
   Core/Auth.php                         Current-user lookup and sign-in/out
   Core/Session.php                      Session cookies, CSRF, flash messages
   Core/Database.php                     Shared, lazy PDO connection
+  Core/PaymentReceipt.php               Private, validated receipt image storage
   Models/Model.php                      Shared model base
   Models/User.php                       Prepared user queries and registration
   Models/Airport.php                    Airport persistence
@@ -29,12 +31,13 @@ app/
   Models/Booking.php                    Atomic booking creation and customer ownership
   Models/Passenger.php                  Passenger persistence
   Models/BookingSeat.php                Seat availability and transactional assignment
+  Models/Payment.php                    Payment persistence, eligibility, and duplicate protection
   Views/                               Home, auth, customer, admin, errors
   Views/layouts/base.php                Shared minimal layout
 config/                                 Database settings read from environment
 .env.example                            Safe template for local settings
 .env                                    Local secrets (ignored by Git)
-database/schema.sql                     Current eleven-table schema (Modules 1–6)
+database/schema.sql                     Current eleven-table schema (Modules 1–8)
 database/migrations/                    Upgrade SQL for existing installations
 public/                                 Web document root and responsive CSS
 routes/web.php                          Explicit route definitions
@@ -50,6 +53,10 @@ scripts/test_search.php                 Customer search and availability integra
 scripts/migrate_module6.php             Repeat-safe passenger/submission-key upgrade
 scripts/test_bookings.php               Booking, validation, ownership, and replay tests
 scripts/test_seat_selection.php         Seat selection, ownership, and concurrency tests
+scripts/migrate_module8.php             Repeat-safe payment/state/constraint upgrade
+scripts/test_payments.php               Upload, payment, authorization, and rollback tests
+storage/payment_receipts/               Private receipt files, ignored by Git
+config/payments.php                     Demo/configurable airline payment instructions
 bootstrap.php                           App autoloading and UTC setup
 ```
 
@@ -83,7 +90,7 @@ Laragon's terminal provides PATH entries. In a regular PowerShell terminal, use 
 From the project root:
 
 ```powershell
-php -S 127.0.0.1:8000 -t public public/router.php
+php -d upload_max_filesize=5M -d post_max_size=8M -d memory_limit=128M -S 127.0.0.1:8000 -t public public/router.php
 ```
 
 Visit <http://127.0.0.1:8000/> and choose Register or Customer login. MySQL must be running to register or log in. An unknown URL returns 404; POST to `/` returns 405. Stop the server with Ctrl+C.
@@ -378,7 +385,7 @@ Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownersh
 
 Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
 
-Module 8 requires explicit approval before implementation.
+Module 8 manual payment submission is implemented below. Module 9 requires explicit approval.
 
 ## SkyReserve interface refresh
 
@@ -401,3 +408,54 @@ If PHP is not on PATH, pass its executable path as the third argument. The defau
 The test uses a temporary Chrome profile and uniquely named, disposable MySQL fixtures via the CLI-only `scripts/test_ui_fixtures.php`. It removes its records in cleanup and saves screenshots in a temporary directory printed on completion. Run only against the local development database shared by the server and test runner; forced termination can leave test fixtures behind.
 
 Local verification: 234 browser checks passed across 25 pages at phone (375px), tablet (768px), and desktop (1440px) widths. Checks cover document overflow, associated form labels, unique IDs, main landmarks/headings, sampled text contrast, mobile navigation, native form feedback, delete confirmation, loading-state recovery, and reduced motion. These automated checks supplement visual review; they are not a full accessibility audit. All 312 Modules 1–6 checks and 36 Module 7 checks passed; all 70 PHP files and both JavaScript files passed syntax checks.
+
+## Module 8: Manual payment submission
+
+Open an owned booking summary and choose **Submit payment**. The page shows the PNR, amount due in the booking's currency, airline instructions, and payment fields. Demo bank/account details are supplied for coursework; configure `PAYMENT_BANK_NAME`, `PAYMENT_ACCOUNT_NAME`, `PAYMENT_ACCOUNT_NUMBER`, and `PAYMENT_INSTRUCTIONS` in the ignored `.env` to replace them. These values are escaped when displayed. The application does not send money or contact a payment provider.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/bookings/payment?booking_id=…` | Owner-only payment form |
+| POST | `/bookings/payment?booking_id=…` | Save payment and optional receipt |
+| GET / HEAD | `/payments/receipt?id=…` | Owner-authorized receipt image |
+
+Only authenticated customers can use these routes. Guests go to customer login, admins receive 403, and another customer's/missing booking or receipt receives 404. POST requires the existing session CSRF token. Bookings must have `pending` status, be unexpired, and belong to an upcoming Scheduled or Delayed flight using active aircraft and airports. Cancelled, expired, confirmed, payment-submitted, past-flight, Cancelled-flight, and Completed-flight cases cannot submit.
+
+Payment method uses the existing Bank transfer / Cash / Other options. Amount must be positive, fit DECIMAL(12,2), and have at most two decimal places. The payment date must be a valid date from 1900 through today in UTC. Transaction/reference numbers are required, accept 1–120 letters/digits/spaces or `. _ : / -`, and are never interpreted as HTML. Cash payments use a cash receipt reference. Submitted amounts are recorded as entered for later review; matching the fare does not automatically verify payment. Currency and customer/booking association come from the owned booking, ignoring submitted status/currency/customer overrides.
+
+The transaction locks the flight, booking, and aircraft in the existing seat-selection order, then rechecks eligibility and active payment records. It inserts a `pending` payment and sets booking status to `payment_submitted`, displayed as **Payment Submitted / Awaiting Verification**. The unique generated active-booking index prevents two pending/verified payments for one booking, including concurrent requests. Duplicate submissions return 409. No booking or seat is confirmed, and no ticket/cancellation is created. Existing seat selection remains available for a valid booking while payment awaits verification.
+
+### Private receipt storage
+
+Receipts are optional. Server-side validation requires a genuine PHP upload, an actual size of at most 5 MiB, an allowed JPG/JPEG/PNG/WEBP extension matching the `finfo` MIME, and a successfully decoded image. Browser MIME is ignored. Corrupt images, embedded PHP/script markers, and images exceeding 6000 pixels per side or 12 megapixels are rejected. GD re-encodes accepted images to remove metadata/trailing content; the processed image must also fit the size limit. GD needs JPEG/PNG/WEBP support.
+
+Files are created with random 48-hex-character names, never original filenames, in `storage/payment_receipts/` outside the executable/public document root. Only a relative `payment_receipts/<random>.<extension>` path is stored in `payments.proof_path`. Files are created exclusively with restrictive permissions where supported. Storage paths and symlinks are checked, and failed writes/transactions remove their newly created file. `.gitignore` excludes receipt files while tracking `.gitkeep`; `storage/.htaccess` denies HTTP access and removes script handlers as an Apache safeguard. Continue serving only `public/`, do not expose storage through web aliases, and grant the PHP process write access to this private directory.
+
+The summary provides an ID-based receipt link. The controller checks customer ownership before resolving the stored filename and streaming a validated image MIME with inline disposition, `nosniff`, a restrictive content security policy, and private/no-store caching. HEAD checks the same ownership without sending the body. Raw storage/filesystem paths are not exposed in customer pages or errors.
+
+For CGI/FPM, `public/.user.ini` sets `upload_max_filesize=5M`, `post_max_size=8M`, and `memory_limit=128M`. For Apache module hosting, apply equivalent PHP configuration in `php.ini`. For the development server, use the `php -d` command under Run the foundation above; the built-in server does not apply `.user.ini`. Restart the server after changing PHP configuration.
+
+### Database upgrade and tests
+
+For an existing installation, stop application writes and run:
+
+```powershell
+php scripts/migrate_module8.php
+```
+
+The local database is already upgraded. The repeat-safe migration adds `payment_submitted` to the existing bookings status enum, nullable `payments.payment_date` for legacy compatibility, and generated `payments.active_booking_id` with unique `uq_payments_active_booking`. Pending/verified rows occupy that index; rejected/refunded historical rows do not. Existing records are preserved. Duplicate historical active payments cause a preflight refusal for manual review. MySQL DDL is not transactional; back up before upgrading. New installations use the updated eleven-table schema directly. The SQL file `database/migrations/008_manual_payment_submission.sql` describes the one-time upgrade; use the PHP runner for repeat-safe checks.
+
+With MySQL and the configured development server running:
+
+```powershell
+php scripts/test_payments.php http://127.0.0.1:8000
+node scripts/test_ui.mjs http://127.0.0.1:8000
+```
+
+Payment tests use unique fixtures and include real multipart uploads, valid JPG/JPEG/PNG/WEBP images (including a valid image over 2 MiB), extension/MIME mismatch, unsafe/script/corrupt/oversized uploads, validation, role/ownership/CSRF protection, receipt GET/HEAD authorization, pending summary, duplicate/database constraint checks, and two independent PDO processes racing to submit one payment. Two temporary booking-scoped MySQL triggers force insert and booking-update failures to verify rollback and file cleanup. These tests need CREATE TRIGGER/DROP TRIGGER permissions on the local development database. Triggers, records, and receipt/media fixtures are removed in cleanup; forced termination can leave fixtures behind.
+
+Local verification: 97 Module 8 checks and all 348 Modules 1–7 checks passed. Both migration invocations succeeded. All 78 PHP files passed lint. The extended UI suite passed 253 Chrome checks across 27 pages, including native payment submission, payment form/summary layout, labels, text contrast, and overflow at 375/768/1440px. Screenshots are saved to a temporary directory printed by the browser test.
+
+New files: `PaymentController.php`, `Payment.php`, `PaymentReceipt.php`, customer payment form/error views, `config/payments.php`, Module 8 SQL/CLI migration, `scripts/test_payments.php`, `public/.user.ini`, and private storage access/placeholder files. Updated files: booking controller/summary, seat-booking status compatibility, routes, schema, shared CSS, environment template, ignore rules, browser tests/fixtures, and this README.
+
+Module 9 requires explicit approval before implementation.

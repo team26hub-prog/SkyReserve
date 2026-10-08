@@ -27,7 +27,7 @@ final class BookingSeat extends Model
 
     private function validate(array $booking, ?array $flight): void
     {
-        if (!in_array($booking['status'], ['pending', 'confirmed'], true)
+        if (!in_array($booking['status'], ['pending', 'payment_submitted', 'confirmed'], true)
             || ($booking['expires_at'] !== null && $booking['expires_at'] <= gmdate('Y-m-d H:i:s'))
             || !$flight
             || !in_array($flight['status'], ['scheduled', 'delayed'], true)

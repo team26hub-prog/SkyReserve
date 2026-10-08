@@ -11,7 +11,7 @@ if (($argv[1] ?? '') === '--cleanup') {
     $fixture = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
     $db->beginTransaction();
     try {
-        foreach (['booking_seats', 'passengers'] as $table) {
+        foreach (['payments', 'booking_seats', 'passengers'] as $table) {
             $db->prepare("DELETE FROM $table WHERE booking_id = ?")->execute([$fixture['bookingId']]);
         }
         $db->prepare('DELETE FROM bookings WHERE id = ?')->execute([$fixture['bookingId']]);

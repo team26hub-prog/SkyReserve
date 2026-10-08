@@ -71,7 +71,7 @@ const checkPages = async (pages, group) => {
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
-            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map'].includes(name) && width !== 768) {
+            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary'].includes(name) && width !== 768) {
                 const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
                 writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
             }
@@ -110,7 +110,12 @@ try {
     assert(await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); document.querySelector('.menu-toggle').getAttribute('aria-expanded') === 'false'`), 'Escape closes menu');
     assert(await evaluate(`document.querySelector('.account-form').requestSubmit(); !!document.querySelector('[aria-invalid="true"]') && document.querySelector('.form-feedback').textContent.includes('highlighted')`), 'Native validation gives accessible feedback');
     await signIn('customer');
-    await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`]], 'customer');
+    await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`], ['payment-form', `/bookings/payment?booking_id=${fixture.bookingId}`]], 'customer');
+    await visit(`/bookings/payment?booking_id=${fixture.bookingId}`);
+    await evaluate(`document.getElementById('method').value = 'bank_transfer'; document.getElementById('transaction_reference').value = 'UI-DEMO-REFERENCE'; document.querySelector('.account-form').requestSubmit(); true`);
+    await ready('/bookings/show');
+    assert(await evaluate(`document.body.textContent.includes('Awaiting Verification') && document.body.textContent.includes('UI-DEMO-REFERENCE')`), 'Native payment form works with shared loading interactions');
+    await checkPages([['payment-summary', `/bookings/show?id=${fixture.bookingId}`]], 'customer');
     await visit('/profile');
     await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login');
     await signIn('admin');

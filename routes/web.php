@@ -13,6 +13,7 @@ use App\Controllers\FlightController;
 use App\Controllers\FlightSearchController;
 use App\Controllers\BookingController;
 use App\Controllers\SeatSelectionController;
+use App\Controllers\PaymentController;
 
 return [
     'GET' => [
@@ -25,6 +26,8 @@ return [
         '/bookings/create' => [BookingController::class, 'create'],
         '/bookings/show' => [BookingController::class, 'show'],
         '/bookings/seats' => [SeatSelectionController::class, 'index'],
+        '/bookings/payment' => [PaymentController::class, 'create'],
+        '/payments/receipt' => [PaymentController::class, 'receipt'],
         '/admin/login' => [AuthController::class, 'adminLoginForm'],
         '/admin' => [AdminController::class, 'index'],
         '/admin/airports' => [AirportController::class, 'index'],
@@ -47,6 +50,7 @@ return [
         '/logout' => [AuthController::class, 'customerLogout'],
         '/bookings' => [BookingController::class, 'store'],
         '/bookings/seats' => [SeatSelectionController::class, 'store'],
+        '/bookings/payment' => [PaymentController::class, 'store'],
         '/admin/login' => [AuthController::class, 'adminLogin'],
         '/admin/logout' => [AuthController::class, 'adminLogout'],
         '/admin/airports' => [AirportController::class, 'store'],

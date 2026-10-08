@@ -4,3 +4,5 @@
 !.env.example
 /vendor/
 *.log
+/storage/payment_receipts/*
+!/storage/payment_receipts/.gitkeep
