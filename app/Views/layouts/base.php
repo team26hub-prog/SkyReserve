@@ -13,6 +13,7 @@
     <header class="site-header">
         <a class="brand" href="/">Airline Ticketing</a>
         <nav aria-label="Main navigation">
+            <a href="/flights">Search flights</a>
             <?php if ($data['user']): ?>
                 <a href="<?= $data['user']['role'] === 'admin' ? '/admin' : '/profile' ?>"><?= $data['user']['role'] === 'admin' ? 'Admin area' : 'Your profile' ?></a>
                 <form class="logout-form" action="<?= $data['user']['role'] === 'admin' ? '/admin/logout' : '/logout' ?>" method="post">

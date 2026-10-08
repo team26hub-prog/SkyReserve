@@ -1,6 +1,6 @@
-# Airplane Ticketing System — Modules 1–4
+# Airplane Ticketing System — Modules 1–5
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management. Customer flight search, bookings, customer seat selection, payments, tickets, and cancellations are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds read-only customer flight search and details. Bookings, passenger workflows, customer seat selection, payments, tickets, and cancellations are not implemented.
 
 ## Requirements
 
@@ -14,6 +14,7 @@ Plain PHP MVC application for a single airline. Module 1 provides the foundation
 ```text
 app/
   Controllers/                         Home, auth, profile, admin, airport/aircraft/seat/flight CRUD
+  Controllers/FlightSearchController.php Public customer search and details
   Core/Controller.php                   Rendering, redirects, role/CSRF guards
   Core/Auth.php                         Current-user lookup and sign-in/out
   Core/Session.php                      Session cookies, CSRF, flash messages
@@ -23,7 +24,7 @@ app/
   Models/Airport.php                    Airport persistence
   Models/Aircraft.php                   Aircraft persistence and capacity locking
   Models/Seat.php                       Aircraft-scoped seat persistence
-  Models/Flight.php                     Flight persistence and joined details
+  Models/Flight.php                     Flight persistence, availability queries, joined details
   Views/                               Home, auth, customer, admin, errors
   Views/layouts/base.php                Shared minimal layout
 config/                                 Database settings read from environment
@@ -41,6 +42,7 @@ scripts/migrate_module3.php             Repeat-safe Module 3 database upgrade
 scripts/test_inventory.php              CRUD, access, validation, and capacity tests
 scripts/migrate_module4.php             Repeat-safe flight constraint upgrade
 scripts/test_flights.php                Flight CRUD, validation, and security tests
+scripts/test_search.php                 Customer search and availability integration tests
 bootstrap.php                           App autoloading and UTC setup
 ```
 
@@ -54,7 +56,7 @@ On a new clone, copy `.env.example` to `.env` and supply your own `DB_HOST`, `DB
 
 The loader accepts one `KEY=value` per line and standalone `#` comments. Single/double quotes wrap literal values; `#`, dollar signs, and backslashes inside values are preserved. Variable expansion, escape processing, and trailing comments are not supported. Restart the development server after editing configuration.
 
-Commit `.env.example` with placeholders. `.gitignore` excludes `.env` and `.env.*` variants while allowing `.env.example`. Do not put real passwords or API keys in the template. Continue serving only `public/`; environment files remain outside the document root. This directory is not yet a Git repository, and no GitHub push has been performed.
+Commit `.env.example` with placeholders. `.gitignore` excludes `.env` and `.env.*` variants while allowing `.env.example`. Do not put real passwords or API keys in the template. Continue serving only `public/`; environment files remain outside the document root.
 
 From the project root, with PHP and MySQL on PATH:
 
@@ -270,4 +272,36 @@ The flight test makes actual HTTP requests for CRUD, details, required fields, d
 
 Local verification: all 52 PHP files passed lint; 75 flight checks, 103 inventory checks, 37 authentication checks, and 12 schema checks passed. The Module 4 migration also passed a second invocation.
 
-Module 5 requires explicit approval before implementation.
+## Module 5: Customer flight search
+
+Open `/flights` using the Search flights link in the header or home page. Guests and signed-in customers can browse without logging in; admins may also preview these public pages. Existing admin management routes remain protected. This module adds only GET routes, with no customer mutation endpoints:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/flights` | Search form |
+| GET | `/flights?from_airport_id=…&to_airport_id=…&travel_date=YYYY-MM-DD` | Search results |
+| GET | `/flights/show?id=…` | Available flight details |
+
+Search requires two different existing active airports and a valid date today or later. Invalid, partial, or array-valued input returns 422 with useful errors and preserved form values. A valid search with no matching flights returns 200 with a no-results message. The form and all flight dates/times explicitly use UTC, consistent with Module 4. Airport-local date conversion is not introduced.
+
+The query selects the requested route and UTC departure calendar day using an indexed date range from `00:00:00` through `23:59:59`, ordered by departure time. Flights must be Scheduled, have a departure later than the current UTC time, use active airports and an active aircraft, and have at least one available seat. Delayed, Cancelled, and Completed flights are excluded.
+
+Available seats are actual configured active aircraft seats without a reserved/confirmed `booking_seats` allocation for that flight. Released allocations do not occupy seats; allocations on other flights do not affect the count. Capacity alone does not create available seats: an aircraft with no active configured seats has no customer-search availability. This reads existing tables only; no booking or passenger workflows are implemented.
+
+Results show flight number, route and airport names, departure/arrival UTC times, aircraft model, exact fare/currency, available seats, status, and a View flight link. Customer details repeat these fields without admin edit/delete controls or a booking button. The detail query repeats availability checks, so sold-out, inactive, unavailable, past-departure, missing, or malformed flight IDs return a customer-friendly 404. The return link restores the corresponding route/date search.
+
+All input values are bound parameters, displayed data is escaped, and POST requests to search/details return 405. GET browsing never updates flights, reserves seats, or creates bookings. Availability is a current snapshot and can change before a future booking module. No schema or migration changes are required for Module 5.
+
+### Test Module 5
+
+With the PHP development server and MySQL running, use a second Laragon terminal:
+
+```powershell
+php scripts/test_search.php http://127.0.0.1:8000
+```
+
+The test creates uniquely named reference/flight fixtures and temporary existing allocation-table fixtures to check availability; it adds no booking endpoints. It verifies valid/no-result/invalid searches, UTC midnight boundaries, date filtering, status exclusions, inactive/unconfigured aircraft, available-seat counts, sold-out transitions, details, escaped output, POST rejection, admin protection, and unchanged flight data/timestamps after browsing. Its cleanup block removes only its fixtures, including allocation/passenger/booking records. Use a local development database with the same configuration as the server. Forced termination may leave fixtures behind.
+
+Local verification: 43 search checks, 75 flight checks, 103 inventory checks, 37 authentication checks, and 12 schema checks passed. All 57 PHP files passed lint.
+
+Module 6 requires explicit approval before implementation.

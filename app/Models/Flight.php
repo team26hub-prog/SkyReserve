@@ -30,6 +30,33 @@ final class Flight extends Model
         return $query->fetch() ?: null;
     }
 
+    public function searchAvailable(int $originId, int $destinationId, string $date): array
+    {
+        $query = $this->db()->prepare($this->customerQuery('f.origin_airport_id = ? AND f.destination_airport_id = ? AND f.departure_at >= ? AND f.departure_at <= ?') . ' ORDER BY departure_at, flight_number, id');
+        $query->execute([gmdate('Y-m-d H:i:s'), $originId, $destinationId, $date . ' 00:00:00', $date . ' 23:59:59']);
+        return $query->fetchAll();
+    }
+
+    public function findAvailable(int $id): ?array
+    {
+        $query = $this->db()->prepare($this->customerQuery('f.id = ?'));
+        $query->execute([gmdate('Y-m-d H:i:s'), $id]);
+        return $query->fetch() ?: null;
+    }
+
+    private function customerQuery(string $condition): string
+    {
+        // Conditions are internal SQL only. Availability counts configured, active
+        // seats without a reserved/confirmed allocation for this specific flight.
+        return 'SELECT eligible.*, (SELECT COUNT(*) FROM seats s
+            WHERE s.aircraft_id = eligible.aircraft_id AND s.status = \'active\'
+            AND NOT EXISTS (SELECT 1 FROM booking_seats bs WHERE bs.flight_id = eligible.id
+                AND bs.seat_id = s.id AND bs.status IN (\'reserved\', \'confirmed\'))) AS available_seats
+            FROM (' . self::SELECT . ' WHERE f.status = \'scheduled\' AND f.departure_at > ?
+                AND origin.status = \'active\' AND destination.status = \'active\' AND a.status = \'active\'
+                AND ' . $condition . ') eligible HAVING available_seats > 0';
+    }
+
     public function save(array $values, ?int $id = null): void
     {
         $params = [$values['flight_number'], $values['origin_airport_id'], $values['destination_airport_id'], $values['aircraft_id'],

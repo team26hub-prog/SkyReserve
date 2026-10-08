@@ -10,6 +10,7 @@ use App\Controllers\AirportController;
 use App\Controllers\AircraftController;
 use App\Controllers\SeatController;
 use App\Controllers\FlightController;
+use App\Controllers\FlightSearchController;
 
 return [
     'GET' => [
@@ -17,6 +18,8 @@ return [
         '/register' => [AuthController::class, 'registerForm'],
         '/login' => [AuthController::class, 'customerLoginForm'],
         '/profile' => [ProfileController::class, 'index'],
+        '/flights' => [FlightSearchController::class, 'index'],
+        '/flights/show' => [FlightSearchController::class, 'show'],
         '/admin/login' => [AuthController::class, 'adminLoginForm'],
         '/admin' => [AdminController::class, 'index'],
         '/admin/airports' => [AirportController::class, 'index'],
