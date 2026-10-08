@@ -51,6 +51,15 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .flight-results { display: grid; gap: 1.25rem; }
 .flight-card { padding: 1.25rem; border: 1px solid #dce3ec; border-radius: 8px; }
 .flight-card h3 { margin: 0; }
+.seat-map { border: 1px solid #dce3ec; border-radius: 8px; margin-top: 1rem; }
+.seat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: .75rem; }
+.seat-tile { display: flex; flex-direction: column; gap: .2rem; align-items: center; padding: .75rem; border: 2px solid #1554a2; border-radius: 8px; cursor: pointer; background: #f0f6ff; }
+.seat-tile input { width: 20px; min-height: 20px; accent-color: #1554a2; }
+.seat-tile:has(input:checked) { border-color: #215635; background: #d9f4e3; }
+.selected-seat, .legend-selected { background: #edf8f0; border-color: #215635; }
+.unavailable-seat, .legend-unavailable { background: #e9edf1; border-color: #8797ac; cursor: not-allowed; }
+.seat-legend { display: flex; flex-wrap: wrap; gap: .5rem; }
+.seat-legend span { padding: .25rem .6rem; border: 1px solid #8797ac; border-radius: 5px; }
 .flight-summary { display: grid; grid-template-columns: minmax(130px, 1fr) 3fr; gap: .4rem 1rem; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .search-form { grid-template-columns: 1fr; } }
 @media (max-width: 480px) {

@@ -11,6 +11,8 @@
 </dl>
 <?php foreach ($data['passengers'] as $passenger): ?>
     <h2>Passenger</h2><dl class="profile-details">
+        <?php $selected = null; foreach ($data['assignments'] as $assignment) { if ((int) $assignment['passenger_id'] === (int) $passenger['id'] && in_array($assignment['status'], ['reserved', 'confirmed'], true)) { $selected = $assignment; break; } } ?>
+        <dt>Selected seat</dt><dd><?= $selected ? $escape($selected['seat_number'] . ' — ' . ucfirst($selected['cabin_class'])) : 'Not selected' ?></dd>
         <dt>Full name</dt><dd><?= $escape($passenger['full_name'] ?? trim($passenger['first_name'] . ' ' . $passenger['last_name'])) ?></dd>
         <dt>CNIC / Passport</dt><dd><?= $escape($passenger['document_number'] ?? '') ?></dd>
         <dt>Date of birth</dt><dd><?= $escape($passenger['date_of_birth'] ?? '') ?></dd>
@@ -19,3 +21,6 @@
     </dl>
 <?php endforeach; ?>
 <p><a href="/flights">Search flights</a></p>
+<?php if (in_array($booking['status'], ['pending', 'confirmed'], true) && in_array($flight['status'], ['scheduled', 'delayed'], true) && $flight['departure_at'] > gmdate('Y-m-d H:i:s')): ?>
+    <p><a class="button" href="/bookings/seats?booking_id=<?= (int) $booking['id'] ?>">View / select seats</a></p>
+<?php endif; ?>

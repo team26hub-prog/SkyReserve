@@ -1,6 +1,6 @@
-# Airplane Ticketing System — Modules 1–6
+# SkyReserve — Modules 1–7
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details. Customer seat selection, payment submission/verification, tickets, and cancellation workflows are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection. Payment submission/verification, tickets, and cancellation workflows are not implemented.
 
 ## Requirements
 
@@ -15,6 +15,7 @@ Plain PHP MVC application for a single airline. Module 1 provides the foundation
 app/
   Controllers/                         Home, auth, profile, admin, airport/aircraft/seat/flight CRUD
   Controllers/FlightSearchController.php Public customer search and details
+  Controllers/SeatSelectionController.php Owner-only seat map and assignment
   Core/Controller.php                   Rendering, redirects, role/CSRF guards
   Core/Auth.php                         Current-user lookup and sign-in/out
   Core/Session.php                      Session cookies, CSRF, flash messages
@@ -27,6 +28,7 @@ app/
   Models/Flight.php                     Flight persistence, availability queries, joined details
   Models/Booking.php                    Atomic booking creation and customer ownership
   Models/Passenger.php                  Passenger persistence
+  Models/BookingSeat.php                Seat availability and transactional assignment
   Views/                               Home, auth, customer, admin, errors
   Views/layouts/base.php                Shared minimal layout
 config/                                 Database settings read from environment
@@ -47,6 +49,7 @@ scripts/test_flights.php                Flight CRUD, validation, and security te
 scripts/test_search.php                 Customer search and availability integration tests
 scripts/migrate_module6.php             Repeat-safe passenger/submission-key upgrade
 scripts/test_bookings.php               Booking, validation, ownership, and replay tests
+scripts/test_seat_selection.php         Seat selection, ownership, and concurrency tests
 bootstrap.php                           App autoloading and UTC setup
 ```
 
@@ -348,4 +351,31 @@ Tests cover successful bookings, required/invalid passenger fields, guest/admin 
 
 Local verification: 42 booking checks and all 270 previous-module checks passed. All 65 PHP files passed lint, and the migration passed two invocations.
 
-Module 7 requires explicit approval before implementation.
+## Module 7: Seat selection
+
+From an owned booking summary, choose **View / select seats**, choose the passenger and an available seat, then save. Successful selection returns to the summary, which shows the seat number and class. The responsive map distinguishes available seats, saved selections for this booking, and booked/inactive seats. Saved assignments cannot be changed through this module.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/bookings/seats?booking_id=…` | Owner-only seat map |
+| POST | `/bookings/seats?booking_id=…` | Assign selected passenger and seat |
+
+Both routes require an authenticated customer. Guests go to login, admins receive 403, and inaccessible/missing bookings receive 404. POST requires the existing session CSRF token. Selection requires a pending or confirmed, unexpired booking, a future Scheduled or Delayed flight, active aircraft/airports, an active passenger belonging to the booking, and an active seat belonging to the flight's aircraft. Past, Cancelled, and Completed flights are blocked. Repeated submissions and a second assignment for the same passenger are rejected.
+
+Assignment runs in one database transaction, locking the flight, booking, aircraft, passenger, seat, and applicable allocation records. Eligibility and occupancy are rechecked after locking. Competing selections on the same flight serialize on its flight row. Existing composite foreign keys enforce the booking/flight, passenger/booking, flight/aircraft, and seat/aircraft relationships. The unique `(flight_id, occupied_seat_id)` constraint prevents two reserved/confirmed assignments occupying the same flight seat; unique `(booking_id, passenger_id)` prevents duplicate passenger assignment. Aircraft locking also coordinates with existing admin seat/capacity changes. A conflict rolls back without replacing an existing assignment.
+
+The assignment is stored as `reserved` in the existing `booking_seats` table. Booking status stays **Pending Payment** for a new booking; no payment, ticket, or cancellation records are created. Existing search availability automatically subtracts reserved seats for that flight. No schema changes or migrations are needed.
+
+### Test Module 7
+
+With the development server and MySQL running, use another Laragon terminal:
+
+```powershell
+php scripts/test_seat_selection.php http://127.0.0.1:8000
+```
+
+Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownership and role protection, CSRF, invalid passenger/booking/flight states, duplicate submissions, summary rendering, and concurrent allocation. The concurrency test uses two independent PHP/PDO processes contending for one seat while a third connection holds the flight lock; it verifies exactly one winner and one allocation. The test creates and removes uniquely named local fixtures. Use the same development database for the server and test runner.
+
+Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
+
+Module 8 requires explicit approval before implementation.
