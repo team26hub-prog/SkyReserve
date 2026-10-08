@@ -94,6 +94,11 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--da
 .account-form + p { margin-top: 1.5rem; }
 .form-feedback { margin: .5rem 0 0; font-size: .9rem; color: var(--muted); }
 .form-feedback:empty { display: none; }
+.filter-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.5rem 0; }
+.filter-tabs a { padding: .6rem 1rem; min-height: 44px; background: var(--teal-soft); border-radius: 8px; text-decoration: none; font-weight: 600; }
+.filter-tabs a[aria-current] { background: var(--teal); color: white; }
+.review-form { margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+textarea { resize: vertical; min-height: 100px; }
 .notice { padding: 1rem 1.25rem; border: 1px solid; border-left-width: 4px; border-radius: 10px; margin-bottom: 1.5rem; overflow-wrap: anywhere; }
 .notice p { margin: 0; }
 .notice ul { margin: .35rem 0 0; padding-left: 1.2rem; }

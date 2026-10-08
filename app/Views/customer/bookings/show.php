@@ -35,6 +35,7 @@
             <dt>Payment status</dt><dd><span class="badge" data-status="<?= $escape($payment['status']) ?>"><?= $escape(ucfirst($payment['status'])) ?></span></dd>
             <dt>Payment date (UTC)</dt><dd><?= $escape($payment['payment_date'] ?? 'Not provided') ?></dd>
             <dt>Receipt</dt><dd><?php if ($payment['proof_path']): ?><a href="/payments/receipt?id=<?= (int) $payment['id'] ?>">View receipt</a><?php else: ?>No receipt uploaded<?php endif; ?></dd>
+            <?php if ($payment['status'] === 'rejected' && $payment['review_notes']): ?><dt>Rejection reason</dt><dd><?= nl2br($escape($payment['review_notes'])) ?></dd><?php endif; ?>
         </dl>
     <?php endforeach; ?>
 <?php endif; ?>

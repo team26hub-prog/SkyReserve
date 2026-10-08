@@ -14,6 +14,7 @@ use App\Controllers\FlightSearchController;
 use App\Controllers\BookingController;
 use App\Controllers\SeatSelectionController;
 use App\Controllers\PaymentController;
+use App\Controllers\AdminPaymentController;
 
 return [
     'GET' => [
@@ -43,6 +44,9 @@ return [
         '/admin/flights/create' => [FlightController::class, 'create'],
         '/admin/flights/edit' => [FlightController::class, 'edit'],
         '/admin/flights/show' => [FlightController::class, 'show'],
+        '/admin/payments' => [AdminPaymentController::class, 'index'],
+        '/admin/payments/show' => [AdminPaymentController::class, 'show'],
+        '/admin/payments/receipt' => [AdminPaymentController::class, 'receipt'],
     ],
     'POST' => [
         '/register' => [AuthController::class, 'register'],
@@ -65,5 +69,7 @@ return [
         '/admin/flights' => [FlightController::class, 'store'],
         '/admin/flights/update' => [FlightController::class, 'update'],
         '/admin/flights/delete' => [FlightController::class, 'delete'],
+        '/admin/payments/verify' => [AdminPaymentController::class, 'verify'],
+        '/admin/payments/reject' => [AdminPaymentController::class, 'reject'],
     ],
 ];

@@ -128,4 +128,21 @@ final class PaymentReceipt
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);
         return isset(self::TYPES[$mime]) ? $mime : null;
     }
+
+    // The caller must authorize the customer/admin before passing a database path.
+    public function stream(string $relative): bool
+    {
+        $path = $this->path($relative);
+        $mime = $path ? $this->mime($path) : null;
+        if (!$path || !$mime) return false;
+        header('Content-Type: ' . $mime);
+        header('Content-Disposition: inline; filename="receipt.' . pathinfo($path, PATHINFO_EXTENSION) . '"');
+        header('Content-Length: ' . filesize($path));
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        header("Content-Security-Policy: default-src 'none'; sandbox");
+        session_write_close();
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') readfile($path);
+        return true;
+    }
 }

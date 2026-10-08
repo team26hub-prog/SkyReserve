@@ -69,18 +69,7 @@ final class PaymentController extends Controller
         $user = $this->requireRole('customer');
         $payment = (new Payment())->receiptForCustomer($this->id('id'), (int) $user['id']);
         if (!$payment || !$payment['proof_path']) { $this->missing(); return; }
-        $storage = new PaymentReceipt();
-        $path = $storage->path($payment['proof_path']);
-        $mime = $path ? $storage->mime($path) : null;
-        if (!$path || !$mime) { $this->missing(); return; }
-        header('Content-Type: ' . $mime);
-        header('Content-Disposition: inline; filename="receipt.' . pathinfo($path, PATHINFO_EXTENSION) . '"');
-        header('Content-Length: ' . filesize($path));
-        header('Cache-Control: private, no-store');
-        header('X-Content-Type-Options: nosniff');
-        header("Content-Security-Policy: default-src 'none'; sandbox");
-        session_write_close();
-        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') readfile($path);
+        if (!(new PaymentReceipt())->stream($payment['proof_path'])) $this->missing();
     }
 
     private function context(): ?array

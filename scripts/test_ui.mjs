@@ -71,7 +71,7 @@ const checkPages = async (pages, group) => {
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
-            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary'].includes(name) && width !== 768) {
+            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details'].includes(name) && width !== 768) {
                 const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
                 writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
             }
@@ -125,6 +125,20 @@ try {
         ['seats', `/admin/seats?aircraft_id=${fixture.aircraftId}`], ['seat-add', `/admin/seats/create?aircraft_id=${fixture.aircraftId}`], ['seat-edit', `/admin/seats/edit?aircraft_id=${fixture.aircraftId}&id=${fixture.seatId}`],
         ['admin-flights', '/admin/flights'], ['flight-add', '/admin/flights/create'], ['flight-edit', `/admin/flights/edit?id=${fixture.flightId}`], ['admin-flight-details', `/admin/flights/show?id=${fixture.flightId}`],
     ], 'admin');
+    await visit('/admin/payments');
+    const paymentId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); const link = row?.querySelector('a[href^="/admin/payments/show"]'); return link ? new URL(link.href).searchParams.get('id') : null; })()`);
+    assert(!!paymentId, 'Submitted customer payment appears in admin list');
+    await checkPages([
+        ['admin-payments', '/admin/payments'], ['admin-payment-details', `/admin/payments/show?id=${paymentId}`],
+        ['admin-verified-payments', '/admin/payments?status=verified'], ['admin-rejected-payments', '/admin/payments?status=rejected'],
+    ], 'admin');
+    assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/payments'`), 'Payment pages highlight Payments navigation');
+    await visit(`/admin/payments/show?id=${paymentId}`);
+    await evaluate(`window.confirm = () => true; document.querySelector('form[action^="/admin/payments/verify"]').requestSubmit(); true`);
+    await ready('/admin/payments/show');
+    await pause(100);
+    assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Verified' && document.body.textContent.includes('Confirmed')`), 'Native admin verification works with shared confirmation and loading interactions');
+    await checkPages([['admin-verified-details', `/admin/payments/show?id=${paymentId}`]], 'admin');
     await visit(`/admin/seats?aircraft_id=${fixture.aircraftId}`);
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/aircraft'`), 'Seat pages highlight Aircraft & seats');
     assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new Event('submit', {bubbles:true, cancelable:true}); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Cancelled delete stays on page without loading state');

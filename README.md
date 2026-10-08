@@ -1,6 +1,6 @@
-# SkyReserve — Modules 1–8
+# SkyReserve — Modules 1–9
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing. Admin payment verification, tickets, and cancellation workflows are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing; Module 9 adds admin payment verification and rejection. Ticket generation, cancellations, and refunds are not implemented.
 
 ## Requirements
 
@@ -17,6 +17,7 @@ app/
   Controllers/FlightSearchController.php Public customer search and details
   Controllers/SeatSelectionController.php Owner-only seat map and assignment
   Controllers/PaymentController.php     Owner-only payment submission and receipt access
+  Controllers/AdminPaymentController.php Admin payment list, details, review, and receipt access
   Core/Controller.php                   Rendering, redirects, role/CSRF guards
   Core/Auth.php                         Current-user lookup and sign-in/out
   Core/Session.php                      Session cookies, CSRF, flash messages
@@ -55,6 +56,7 @@ scripts/test_bookings.php               Booking, validation, ownership, and repl
 scripts/test_seat_selection.php         Seat selection, ownership, and concurrency tests
 scripts/migrate_module8.php             Repeat-safe payment/state/constraint upgrade
 scripts/test_payments.php               Upload, payment, authorization, and rollback tests
+scripts/test_payment_reviews.php        Admin review, audit, authorization, and concurrency tests
 storage/payment_receipts/               Private receipt files, ignored by Git
 config/payments.php                     Demo/configurable airline payment instructions
 bootstrap.php                           App autoloading and UTC setup
@@ -385,7 +387,7 @@ Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownersh
 
 Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
 
-Module 8 manual payment submission is implemented below. Module 9 requires explicit approval.
+Modules 8 and 9 are implemented below. Module 10 requires explicit approval.
 
 ## SkyReserve interface refresh
 
@@ -458,4 +460,43 @@ Local verification: 97 Module 8 checks and all 348 Modules 1–7 checks passed. 
 
 New files: `PaymentController.php`, `Payment.php`, `PaymentReceipt.php`, customer payment form/error views, `config/payments.php`, Module 8 SQL/CLI migration, `scripts/test_payments.php`, `public/.user.ini`, and private storage access/placeholder files. Updated files: booking controller/summary, seat-booking status compatibility, routes, schema, shared CSS, environment template, ignore rules, browser tests/fixtures, and this README.
 
-Module 9 requires explicit approval before implementation.
+## Module 9: Admin payment verification
+
+Sign in at `/admin/login`, then choose **Payments**. The dashboard shows the pending-payment count. The payment list defaults to Pending and provides Pending / Verified / Rejected filters. Details show the customer, PNR, flight/route/times, passenger, amount due, amount submitted, method, transaction reference, payment date, protected receipt link, payment status, and review audit information.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/admin/payments?status=pending` | List payments; also accepts `verified` or `rejected` |
+| GET | `/admin/payments/show?id=…` | Payment and booking details |
+| GET / HEAD | `/admin/payments/receipt?id=…` | Admin-authorized receipt image |
+| POST | `/admin/payments/verify?id=…` | Verify payment and confirm booking |
+| POST | `/admin/payments/reject?id=…` | Reject payment and return booking to Pending Payment |
+
+All routes require an active admin. Guests redirect to admin login; customers receive 403. Mutations require a session CSRF token and POST. Missing/malformed payment IDs return 404; invalid filters or rejection reasons return 422; invalid or repeated transitions return 409. Review forms ask for confirmation through the shared vanilla JavaScript and remain usable without JavaScript.
+
+Only a `pending` payment belonging to a `payment_submitted` booking can be reviewed. Verification changes the payment to `verified` and the booking to `confirmed`, recording the authenticated admin in the existing `reviewed_by` column and the UTC timestamp in `reviewed_at`. It rechecks that the booking is unexpired and the flight is upcoming, Scheduled or Delayed, and uses active aircraft and airports. Admins compare the submitted amount and receipt with the amount due; no automatic amount-based approval occurs.
+
+Rejection changes the payment to `rejected` and the booking to `pending` (Pending Payment). An optional plain-text reason of up to 1000 characters is stored in `review_notes` and displayed escaped on both admin details and the owning customer's booking summary. The existing Module 8 form permits a new submission while the booking remains eligible; the rejected record remains immutable history. Flight validity and booking expiry are preserved. Cancelled, expired, or already confirmed bookings cannot be reviewed or restored through these actions.
+
+Payment and booking updates run in one transaction, locking the flight, booking, aircraft, and payment in the existing submission order. The active reviewer is checked under a shared lock. Eligibility is rechecked after locking, so competing admin decisions have one winner and repeat actions cannot overwrite the audit record. Failed writes roll back both statuses and audit fields. The existing active-payment unique index prevents a second pending/verified submission for the same booking.
+
+Admin receipts use the existing private storage and safe image-streaming helper after authorization. The customer receipt route remains owner-only. Both support protected HEAD requests, private/no-store caching, validated image MIME, and `nosniff`; neither exposes the stored filesystem path. No receipt files are moved or changed by review.
+
+### Database usage and tests
+
+No schema change or migration is needed. Module 9 reuses `payments.reviewed_by`, `reviewed_at`, and `review_notes`, existing payment/booking statuses, and the reviewer foreign key to `users`. Verification creates no ticket and does not change seat allocations. Rejection creates no cancellation or refund.
+
+With MySQL and the configured development server running, use another terminal:
+
+```powershell
+php scripts/test_payment_reviews.php http://127.0.0.1:8000
+node scripts/test_ui.mjs http://127.0.0.1:8000
+```
+
+Run against the local development database shared by the server and test runner. Review tests create unique users, flights, bookings, payments, and a private receipt. They cover filters, escaped details/reasons, receipt GET/HEAD authorization, successful verify/reject, customer resubmission after rejection, audit identity/timestamp, invalid/repeated transitions, roles, CSRF, expiry and flight validity, and transaction rollback. A temporary booking-scoped MySQL trigger forces a failed booking update; CREATE TRIGGER/DROP TRIGGER permissions are needed for this local test. Independent PHP/PDO processes also race verify against reject and assert exactly one succeeds. Fixtures, receipt, and trigger are removed in cleanup; forced termination can leave test data behind.
+
+Local verification: **74 Module 9 checks and all 445 Modules 1–8 checks passed**. All 83 PHP files passed lint. The browser suite passed **301 Chrome checks across 32 pages** at 375/768/1440px, including payment filters/details, active admin navigation, and native verification. It checks labels, landmarks, text contrast, overflow, and existing JavaScript interactions; screenshots supplement these checks rather than constituting a full accessibility audit.
+
+Created: `AdminPaymentController.php`, three `app/Views/admin/payments/` views, and `scripts/test_payment_reviews.php`. Updated: `Payment.php`, shared receipt streaming and customer receipt controller, admin dashboard/controller/navigation, customer booking summary, routes, shared CSS, browser tests, and this README.
+
+Module 10 requires explicit approval before implementation.
