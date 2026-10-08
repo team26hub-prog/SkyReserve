@@ -6,6 +6,15 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require dirname(__DIR__) . '/bootstrap.php';
 use App\Core\Database;
 
+if (($argv[1] ?? '') === '--home-empty') {
+    $data = ['title' => 'SkyReserve', 'user' => null, 'flash' => null, 'upcomingFlights' => []];
+    $view = 'foundation/index'; $viewFile = BASE_PATH . '/app/Views/foundation/index.php';
+    $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $csrf = str_repeat('0', 64);
+    require BASE_PATH . '/app/Views/layouts/base.php';
+    exit;
+}
+
 $db = Database::connection();
 if (($argv[1] ?? '') === '--cleanup') {
     $fixture = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
@@ -21,6 +30,7 @@ if (($argv[1] ?? '') === '--cleanup') {
         $db->prepare('DELETE FROM aircraft WHERE id = ?')->execute([$fixture['aircraftId']]);
         $db->prepare('DELETE FROM airports WHERE id IN (?, ?)')->execute([$fixture['from'], $fixture['to']]);
         $db->prepare('DELETE FROM users WHERE email IN (?, ?)')->execute([$fixture['customerEmail'], $fixture['adminEmail']]);
+        if (isset($fixture['registeredEmail'])) $db->prepare('DELETE FROM users WHERE email = ?')->execute([$fixture['registeredEmail']]);
         $db->commit();
     } catch (Throwable $exception) { $db->rollBack(); throw $exception; }
     exit;

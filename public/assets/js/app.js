@@ -71,16 +71,22 @@ if (menuButton && navigation) {
 }
 
 const confirmationDialog = document.getElementById('confirmation-dialog');
-const askConfirmation = (message, label = 'Confirm', discard = false) => {
-    if (!confirmationDialog?.showModal) return Promise.resolve(window.confirm(message));
+const askConfirmation = (message, label = 'Confirm', discard = false, notice = null) => {
+    if (!confirmationDialog?.showModal) {
+        if (notice) { window.alert(message); return Promise.resolve(true); }
+        return Promise.resolve(window.confirm(message));
+    }
     if (confirmationDialog.open) return Promise.resolve(false);
     const confirm = confirmationDialog.querySelector('[data-dialog-confirm]');
     const cancel = confirmationDialog.querySelector('[data-dialog-cancel]');
-    confirmationDialog.querySelector('#confirmation-title').textContent = discard ? 'Leave without saving?' : 'Please confirm';
+    confirmationDialog.querySelector('#confirmation-title').textContent = notice ? (notice === 'success' ? 'Success' : 'Please check your details') : (discard ? 'Leave without saving?' : 'Please confirm');
+    confirmationDialog.dataset.kind = notice ?? 'confirm';
+    confirmationDialog.querySelector('.confirmation-icon').textContent = notice === 'success' ? '✓' : '!';
     confirmationDialog.querySelector('#confirmation-message').textContent = message;
     confirm.textContent = label;
     confirm.classList.toggle('button-danger', discard || /delete|reject|cancel/i.test(label));
     cancel.textContent = discard ? 'Keep editing' : 'Cancel';
+    cancel.hidden = !!notice;
     return new Promise((resolve) => {
         const accept = () => confirmationDialog.close('confirmed');
         const decline = () => confirmationDialog.close('cancelled');
@@ -98,6 +104,7 @@ const askConfirmation = (message, label = 'Confirm', discard = false) => {
         confirmationDialog.addEventListener('cancel', escape);
         confirmationDialog.addEventListener('close', close);
         confirmationDialog.showModal();
+        if (notice) confirm.focus();
     });
 };
 
@@ -132,7 +139,8 @@ document.querySelectorAll('form').forEach((form) => {
     const pathname = new URL(form.action).pathname;
     // A field named "method" (payment method) shadows HTMLFormElement.method.
     if (form.getAttribute('method')?.toLowerCase() === 'post' && !form.dataset.confirm) {
-        if (form.classList.contains('account-form') && pathname.startsWith('/admin/') && pathname !== '/admin/login') form.dataset.confirm = 'Save these changes?';
+        if (pathname === '/logout' || pathname === '/admin/logout') form.dataset.confirm = 'Are you sure you want to log out of SkyReserve?';
+        else if (form.classList.contains('account-form') && pathname.startsWith('/admin/') && pathname !== '/admin/login') form.dataset.confirm = 'Save these changes?';
         else if (pathname === '/bookings') form.dataset.confirm = 'Create this booking with the passenger details provided?';
         else if (pathname === '/bookings/seats') form.dataset.confirm = 'Assign the selected seat to this passenger?';
         else if (pathname === '/bookings/payment') form.dataset.confirm = 'Submit these payment details for administrator verification?';
@@ -169,10 +177,13 @@ document.querySelectorAll('form').forEach((form) => {
             event.preventDefault();
             confirmationPending = true;
             // A button-specific prompt keeps multi-action forms honest about the selected action.
-            const message = submitter?.dataset.confirm ?? form.dataset.confirm;
+            let message = submitter?.dataset.confirm ?? form.dataset.confirm;
+            const logout = pathname === '/logout' || pathname === '/admin/logout';
+            if (logout && dirtyForms().length) message += ' Unsaved changes on this page will be discarded.';
             askConfirmation(message, submitter?.textContent.trim() || 'Confirm').then((accepted) => {
                 confirmationPending = false;
                 if (!accepted || !form.isConnected) return;
+                if (logout) leavingPage = true;
                 approvedSubmitter = submitter;
                 try { submitter ? form.requestSubmit(submitter) : form.requestSubmit(); }
                 finally { approvedSubmitter = undefined; }
@@ -190,6 +201,31 @@ document.querySelectorAll('form').forEach((form) => {
         // Keep all successful form controls intact for normal browser submission.
     });
 });
+
+// Use the existing password controls so names, values, and autocomplete stay intact.
+document.querySelectorAll('.page-auth input[type="password"]').forEach((input) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'password-field';
+    input.before(wrapper);
+    wrapper.append(input);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'password-toggle';
+    toggle.setAttribute('aria-controls', input.id);
+    toggle.setAttribute('aria-label', 'Show ' + (input.id === 'password_confirmation' ? 'confirmation password' : 'password'));
+    toggle.setAttribute('aria-pressed', 'false');
+    toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg>';
+    toggle.addEventListener('click', () => {
+        const visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        toggle.setAttribute('aria-pressed', String(visible));
+        toggle.setAttribute('aria-label', (visible ? 'Hide ' : 'Show ') + (input.id === 'password_confirmation' ? 'confirmation password' : 'password'));
+    });
+    wrapper.append(toggle);
+});
+
+const authAlert = document.querySelector('[data-auth-alert]');
+if (authAlert) askConfirmation(authAlert.textContent.trim(), 'Continue', false, authAlert.dataset.authAlert);
 
 window.addEventListener('pageshow', () => {
     leavingPage = false;

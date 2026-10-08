@@ -57,6 +57,7 @@ abstract class Controller
         $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $data['user'] = Auth::user();
         $data['flash'] = Session::pullFlash();
+        $data['authAlert'] = Session::pullAuthAlert();
         $csrf = Session::csrfToken();
         require BASE_PATH . '/app/Views/layouts/base.php';
     }

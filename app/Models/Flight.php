@@ -44,6 +44,13 @@ final class Flight extends Model
         return $query->fetch() ?: null;
     }
 
+    public function upcomingAvailable(): array
+    {
+        $query = $this->db()->prepare($this->customerQuery('1 = 1') . ' ORDER BY departure_at, flight_number, id LIMIT 6');
+        $query->execute([gmdate('Y-m-d H:i:s')]);
+        return $query->fetchAll();
+    }
+
     private function customerQuery(string $condition): string
     {
         // Conditions are internal SQL only. Availability counts configured, active

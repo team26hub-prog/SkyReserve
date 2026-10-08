@@ -3,7 +3,7 @@
 <h1>Create your account</h1>
 <p class="muted">One account for your profile, bookings, and seat selection.</p>
 <?php if ($errors): ?>
-    <div class="notice error" role="alert">
+    <div class="notice error" role="alert" data-auth-alert="error">
         <p>Please check the following:</p>
         <ul><?php foreach ($errors as $error): ?><li><?= $escape($error) ?></li><?php endforeach; ?></ul>
     </div>

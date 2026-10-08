@@ -40,9 +40,17 @@ final class Session
             && hash_equals($_SESSION['csrf_token'], $token);
     }
 
-    public static function flash(string $message): void
+    public static function flash(string $message, bool $authAlert = false): void
     {
         $_SESSION['flash'] = $message;
+        $_SESSION['auth_alert'] = $authAlert;
+    }
+
+    public static function pullAuthAlert(): bool
+    {
+        $enabled = ($_SESSION['auth_alert'] ?? false) === true;
+        unset($_SESSION['auth_alert']);
+        return $enabled;
     }
 
     public static function pullFlash(): ?string

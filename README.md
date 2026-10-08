@@ -119,6 +119,8 @@ try {
 
 Passwords require at least eight characters and at most 72 bytes. Existing emails are refused. Sign in at `/admin/login`; customer registration always creates a customer.
 
+Customer login redirects to the homepage; admin login opens the dashboard. Registration and login forms include password visibility toggles. Authentication results display one-time styled alerts, and logout asks for confirmation before ending the session.
+
 ### Existing database upgrades
 
 Back up the database, then run only the upgrades applicable to the installation, in order:
@@ -163,12 +165,16 @@ The UI uses the SkyReserve navy/orange/teal theme, responsive layouts, SVG sideb
 
 Shared Back/Cancel buttons link to explicit parent pages. Plain JavaScript provides SweetAlert-style confirmation dialogs for saves, submissions, destructive actions, and leaving edited forms. Dialogs support keyboard focus and Escape; older browsers use native confirmation. Reloading or closing a changed form uses the browser's unsaved-changes prompt. JavaScript confirmations supplement server-side validation, permissions, CSRF, and duplicate protection; they do not replace them.
 
+The homepage shows up to six upcoming flights using the same eligibility and seat-availability rules as customer search. It includes four service benefits, a six-step booking journey, an empty-flight state, and a final CTA tailored to guests, customers, and admins.
+
+Mobile and tablet screens include fixed bottom quick navigation with active states and SVG icons. Customer links open Home, Flights, Bookings, and Profile; guests are directed to login for account actions, while admins see authorized dashboard/report links. Content spacing and iPhone safe-area padding keep the bar clear of page content; printing hides it.
+
 ## Tests
 
 Use a **local development database**, with the server above running and the same `.env` for server and CLI. Test fixtures are removed on completion; forced termination can leave records behind. Do not run tests against production data.
 
 ```powershell
-$tests = @('schema', 'auth', 'inventory', 'flights', 'search', 'bookings', 'seat_selection', 'payments', 'payment_reviews', 'tickets', 'cancellations', 'reports')
+$tests = @('schema', 'auth', 'inventory', 'flights', 'search', 'bookings', 'seat_selection', 'payments', 'payment_reviews', 'tickets', 'cancellations', 'reports', 'homepage')
 foreach ($test in $tests) {
     php "scripts/test_$test.php" http://127.0.0.1:8000
     if ($LASTEXITCODE -ne 0) { throw "Failed: $test" }

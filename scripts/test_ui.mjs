@@ -35,9 +35,17 @@ const ready = async (path) => {
         try { if (await evaluate(`document.readyState === 'complete' && location.pathname === ${JSON.stringify(new URL(path, base).pathname)}`)) return; } catch {}
         await pause(100);
     }
-    throw new Error(`Page did not load: ${path}`);
+    const state = await evaluate(`({path: location.pathname, error: document.querySelector('.notice.error')?.textContent.trim(), dialog: document.querySelector('#confirmation-dialog')?.open, forms: [...document.querySelectorAll('form')].map(form => ({action: form.action, submitting: form.dataset.submitting}))})`);
+    throw new Error(`Page did not load: ${path}; ${JSON.stringify(state)}`);
 };
 const visit = async (path) => { await command('Page.navigate', { url: new URL(path, base).href }); await ready(path); await pause(80); };
+const waitFor = async (expression, label) => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+        try { if (await evaluate(expression)) return; } catch {}
+        await pause(100);
+    }
+    throw new Error(label);
+};
 const respondToConfirmation = async (accept = true) => {
     const state = await evaluate(`({open: document.querySelector('#confirmation-dialog')?.open, path: location.pathname, forms: [...document.querySelectorAll('main form')].map(form => ({action: form.action, confirm: form.dataset.confirm, invalid: [...form.elements].filter(field => field.willValidate && !field.validity.valid).map(field => ({name: field.name, value: field.value, error: field.validationMessage}))}))})`);
     assert(state.open, `Accessible confirmation dialog opens: ${JSON.stringify(state)}`);
@@ -72,12 +80,21 @@ const checkPages = async (pages, group) => {
     for (const [name, path] of pages) {
         await visit(path);
         assert(await evaluate(`location.pathname === '/' || !!document.querySelector('.back-navigation a[href^="/"]')`), `${name} provides a safe parent navigation button`);
-        for (const width of [375, 768, 1440]) {
+        for (const width of group === 'admin' ? [375, 768, 1440] : [320, 375, 390, 768, 1440]) {
             await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
             const result = await evaluate(`(${audit.toString()})()`);
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
+            if (['search', 'search-results'].includes(name) && width <= 800) {
+                assert(await evaluate(`(() => { const hero = document.querySelector('.search-hero').getBoundingClientRect(); const form = document.querySelector('.search-form').getBoundingClientRect(); return hero.bottom + 8 <= form.top && [...document.querySelectorAll('.search-form input, .search-form select, .search-form button')].every(control => { const rect = control.getBoundingClientRect(); return rect.left >= form.left && rect.right <= form.right + 1; }); })()`), `${name} hero and form controls do not overlap at ${width}px`);
+            }
+            if (width <= 800) {
+                assert(await evaluate(`(() => { const brand = document.querySelector('.site-header .brand').getBoundingClientRect(); const menu = document.querySelector('.menu-toggle').getBoundingClientRect(); return brand.right <= menu.left && Math.abs(brand.top + brand.height / 2 - menu.top - menu.height / 2) < 1; })()`), `${name} mobile branding and menu fit one row at ${width}px`);
+                assert(await evaluate(`(() => { const nav = document.querySelector('.mobile-quick-nav'); const rect = nav.getBoundingClientRect(); return getComputedStyle(nav).position === 'fixed' && Math.abs(rect.bottom - innerHeight) < 1 && nav.querySelectorAll('a').length === 4 && [...nav.querySelectorAll('a')].every(link => link.getBoundingClientRect().height >= 44) && parseFloat(getComputedStyle(document.body).paddingBottom) >= rect.height; })()`), `${name} quick navigation stays at bottom with tap targets and reserved space at ${width}px`);
+            } else {
+                assert(await evaluate(`getComputedStyle(document.querySelector('.mobile-quick-nav')).display === 'none'`), `${name} hides mobile quick navigation on desktop`);
+            }
             if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details', 'admin-ticket', 'customer-ticket', 'my-bookings', 'cancellation-form', 'admin-cancellations', 'admin-cancellation-details', 'cancelled-booking', 'void-ticket', 'dashboard', 'report-bookings', 'report-passengers'].includes(name) && width !== 768) {
                 const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
                 writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
@@ -89,7 +106,16 @@ const checkPages = async (pages, group) => {
 const signIn = async (role) => {
     await visit(role === 'admin' ? '/admin/login' : '/login');
     await evaluate(`document.getElementById('email').value = ${JSON.stringify(fixture[role + 'Email'])}; document.getElementById('password').value = ${JSON.stringify(fixture.password)}; document.querySelector('.account-form').requestSubmit(); true`);
-    await ready(role === 'admin' ? '/admin' : '/profile');
+    await ready(role === 'admin' ? '/admin' : '/');
+    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'success'`), 'Login shows an authenticated success alert');
+    await respondToConfirmation();
+};
+const signOut = async (role) => {
+    await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`);
+    await respondToConfirmation();
+    await ready(role === 'admin' ? '/admin/login' : '/login');
+    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'success'`), 'Logout shows a one-time success alert');
+    await respondToConfirmation();
 };
 try {
     let targets;
@@ -113,6 +139,32 @@ try {
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
     const search = `/flights?from_airport_id=${fixture.from}&to_airport_id=${fixture.to}&travel_date=${fixture.date}`;
     await checkPages([['home', '/'], ['search', '/flights'], ['search-results', search], ['login', '/login'], ['register', '/register'], ['admin-login', '/admin/login'], ['flight-details', `/flights/show?id=${fixture.flightId}`]], 'guest');
+    await visit('/register');
+    assert(await evaluate(`(() => { document.querySelector('#password').value = 'Visibility-Test-123'; const toggle = document.querySelector('[aria-controls="password"]'); toggle.click(); const shown = document.querySelector('#password').type === 'text' && toggle.getAttribute('aria-pressed') === 'true' && document.querySelector('#password_confirmation').type === 'password'; toggle.click(); return shown && document.querySelector('#password').type === 'password' && document.querySelector('#password').value === 'Visibility-Test-123'; })()`), 'Registration eye toggle preserves values and operates independently');
+    assert(await evaluate(`(() => { const toggle = document.querySelector('[aria-controls="password_confirmation"]'); toggle.click(); const shown = document.querySelector('#password_confirmation').type === 'text'; toggle.click(); return shown && document.querySelector('#password_confirmation').type === 'password'; })()`), 'Confirmation password has its own visibility toggle');
+    fixture.registeredEmail = fixture.customerEmail.replace('ui-customer-', 'ui-registered-');
+    await evaluate(`document.querySelector('#name').value = 'UI Registration Check'; document.querySelector('#email').value = ${JSON.stringify(fixture.registeredEmail)}; document.querySelector('#password').value = ${JSON.stringify(fixture.password)}; document.querySelector('#password_confirmation').value = ${JSON.stringify(fixture.password)}; document.querySelector('.account-form').requestSubmit(); true`);
+    await ready('/login');
+    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'success' && document.querySelector('#confirmation-message').textContent.includes('Account created')`), 'Successful registration displays a success dialog');
+    await respondToConfirmation();
+    assert(await evaluate(`(() => { const toggle = document.querySelector('[aria-controls="password"]'); toggle.click(); const shown = document.querySelector('#password').type === 'text'; toggle.click(); return shown && document.querySelector('#password').type === 'password'; })()`), 'Login eye toggle reveals and conceals the password');
+    await evaluate(`document.querySelector('#email').value = ${JSON.stringify(fixture.customerEmail)}; document.querySelector('#password').value = 'Wrong-Password'; document.querySelector('.account-form').requestSubmit(); true`);
+    await pause(400); await ready('/login');
+    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'error' && document.querySelector('#confirmation-message').textContent.includes('Invalid email or password')`), 'Invalid login displays a generic error dialog');
+    await respondToConfirmation();
+    await visit('/');
+    assert(await evaluate(`document.querySelector('.mobile-quick-nav a[aria-current="page"]').getAttribute('href') === '/' && document.querySelector('.mobile-quick-nav a[aria-label="Log in to view your bookings"]').getAttribute('href') === '/login'`), 'Guest quick navigation protects account destinations and marks Home active');
+    assert(await evaluate(`document.querySelectorAll('[data-upcoming-flight]').length <= 6 && document.querySelector('.home-final-cta a[href="/login"]') !== null && document.querySelectorAll('.benefit-card').length === 4 && document.querySelectorAll('.booking-journey li').length === 6`), 'Guest homepage sections and Login CTA render');
+    const emptyHomepage = execFileSync(php, [fixtureScript, '--home-empty'], {encoding: 'utf8'});
+    const homeFrame = await command('Page.getFrameTree');
+    await command('Page.setDocumentContent', {frameId: homeFrame.frameTree.frame.id, html: emptyHomepage});
+    await pause(150);
+    for (const width of [375, 768, 1440]) {
+        await command('Emulation.setDeviceMetricsOverride', {width, height:1000, deviceScaleFactor:1, mobile:false});
+        const result = await evaluate(`(${audit.toString()})()`);
+        assert(!result.overflow && !result.unlabeled.length && !result.duplicateIds && !result.contrastIssues.length && result.headings === 1, `Empty-flight homepage is accessible and responsive at ${width}px`);
+        assert(await evaluate(`!!document.querySelector('[data-upcoming-empty]') && !document.querySelector('[data-upcoming-flight]')`), 'Empty state replaces flight cards');
+    }
     await visit('/flights');
     await evaluate(`document.querySelector('#from_airport_id').value = '${fixture.from}'; document.querySelector('#from_airport_id').dispatchEvent(new Event('change', {bubbles:true})); true`);
     await pause(450);
@@ -127,6 +179,18 @@ try {
     assert(await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); document.querySelector('.menu-toggle').getAttribute('aria-expanded') === 'false'`), 'Escape closes menu');
     assert(await evaluate(`document.querySelector('.account-form').requestSubmit(); !!document.querySelector('[aria-invalid="true"]') && document.querySelector('.form-feedback').textContent.includes('highlighted')`), 'Native validation gives accessible feedback');
     await signIn('customer');
+    await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`);
+    await respondToConfirmation(false);
+    assert(await evaluate(`!!document.querySelector('.logout-form') && location.pathname === '/'`), 'Dismissing logout confirmation keeps the customer signed in on home');
+    await checkPages([['home-customer', '/']], 'customer');
+    await evaluate(`document.querySelector('.mobile-quick-nav a[href="/profile"]').click(); true`);
+    await ready('/profile');
+    assert(await evaluate(`document.querySelector('.mobile-quick-nav a[aria-current="page"]').getAttribute('href') === '/profile'`), 'Customer quick Profile link reaches the existing profile route');
+    await evaluate(`document.querySelector('.mobile-quick-nav a[href="/bookings"]').click(); true`);
+    await ready('/bookings');
+    assert(await evaluate(`document.querySelector('.mobile-quick-nav a[aria-current="page"]').getAttribute('href') === '/bookings'`), 'Customer quick Bookings link reaches its existing bookings route');
+    await visit('/');
+    assert(await evaluate(`!!document.querySelector('.home-final-cta a[href="/bookings"]')`), 'Customer homepage links to My Bookings');
     await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`], ['payment-form', `/bookings/payment?booking_id=${fixture.bookingId}`]], 'customer');
     await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
     await evaluate(`document.querySelector('#passenger_id').selectedIndex = 1; document.querySelector('input[name="seat_id"][value="${fixture.seatId}"]').checked = true; document.querySelector('.account-form').requestSubmit(); true`);
@@ -141,8 +205,11 @@ try {
     assert(await evaluate(`document.body.textContent.includes('Awaiting Verification') && document.body.textContent.includes('UI-DEMO-REFERENCE')`), 'Native payment form works with shared loading interactions');
     await checkPages([['payment-summary', `/bookings/show?id=${fixture.bookingId}`]], 'customer');
     await visit('/profile');
-    await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login');
+    await signOut('customer');
     await signIn('admin');
+    await checkPages([['home-admin', '/']], 'admin');
+    assert(await evaluate(`!!document.querySelector('.mobile-quick-nav a[href="/admin"]') && !!document.querySelector('.mobile-quick-nav a[href="/admin/reports"]') && !document.querySelector('.mobile-quick-nav a[href="/profile"], .mobile-quick-nav a[href="/bookings"]')`), 'Admin quick navigation uses authorized admin destinations');
+    assert(await evaluate(`!!document.querySelector('.home-final-cta a[href="/admin"]') && !document.querySelector('.home-final-cta a[href="/bookings"]')`), 'Admin homepage links to its authorized dashboard');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 800, deviceScaleFactor: 1, mobile: false });
     await visit('/admin');
     assert(await evaluate(`document.querySelectorAll('.admin-nav svg[aria-hidden="true"]').length === 7`), 'All admin sidebar actions have decorative SVG icons');
@@ -248,7 +315,8 @@ try {
     await evaluate(`document.querySelector('#flight_id').value = '${fixture.flightId}'; document.querySelector('#booking_status').value = 'confirmed'; document.querySelector('.report-filters').requestSubmit(); true`);
     await ready('/admin/reports/bookings'); await pause(100);
     assert(await evaluate(`new URL(location.href).searchParams.get('flight_id') === '${fixture.flightId}' && !!document.querySelector('[data-report-row="${fixture.bookingId}"]') && document.querySelector('[data-report-total]').textContent.trim() === '1'`), 'Native report filters retain selection and show accurate total');
-    await evaluate(`document.querySelectorAll('.report-filters input, .report-filters select').forEach(field => field.value = ''); document.querySelector('#booking_status').dispatchEvent(new Event('change', {bubbles:true})); true`); await pause(650); await ready('/admin/reports/bookings');
+    await evaluate(`document.querySelectorAll('.report-filters input, .report-filters select').forEach(field => field.value = ''); document.querySelector('#booking_status').dispatchEvent(new Event('change', {bubbles:true})); true`);
+    await waitFor(`document.readyState === 'complete' && new URL(location.href).searchParams.get('booking_status') === ''`, 'Cleared report filters finish loading');
     assert(await evaluate(`document.querySelector('#flight_id').value === '' && document.querySelector('#booking_status').value === '' && new URL(location.href).searchParams.get('booking_status') === ''`), 'Clearing fields removes report filters automatically');
     for (const width of [375, 1440]) {
         await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
@@ -261,18 +329,18 @@ try {
     assert(await evaluate(`new URL(location.href).searchParams.get('booking_status') === 'cancelled' && document.querySelector('[data-report-total]').textContent.trim() === '0'`), 'Report filters refresh automatically after selection');
     await visit(`/admin/seats?aircraft_id=${fixture.aircraftId}`);
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/aircraft'`), 'Seat pages highlight Aircraft & seats');
-    await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`);
-    await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`);
-    assert(await evaluate(`document.querySelector('#confirmation-dialog').open && !document.querySelector('form[data-confirm]').dataset.submitting`), 'Repeated submission while awaiting permission stays blocked');
+    await evaluate(`document.querySelector('main form[data-confirm]').requestSubmit(); true`);
+    await evaluate(`document.querySelector('main form[data-confirm]').requestSubmit(); true`);
+    assert(await evaluate(`document.querySelector('#confirmation-dialog').open && !document.querySelector('main form[data-confirm]').dataset.submitting`), 'Repeated submission while awaiting permission stays blocked');
     await respondToConfirmation(false);
-    assert(await evaluate(`!document.querySelector('form[data-confirm]').dataset.submitting`), 'Cancelled delete stays on page without loading state');
-    await evaluate(`(() => { const form = document.querySelector('form[data-confirm]'); let submits = 0; const stopSave = (event) => { if (++submits === 2) { event.preventDefault(); form.removeEventListener('submit', stopSave); } }; form.addEventListener('submit', stopSave); form.requestSubmit(form.querySelector('button')); return true; })()`);
+    assert(await evaluate(`!document.querySelector('main form[data-confirm]').dataset.submitting`), 'Cancelled delete stays on page without loading state');
+    await evaluate(`(() => { const form = document.querySelector('main form[data-confirm]'); let submits = 0; const stopSave = (event) => { if (++submits === 2) { event.preventDefault(); form.removeEventListener('submit', stopSave); } }; form.addEventListener('submit', stopSave); form.requestSubmit(form.querySelector('button')); return true; })()`);
     await respondToConfirmation();
-    assert(await evaluate(`document.querySelector('form[data-confirm] button').getAttribute('aria-busy') === 'true'`), 'Confirmed action gets loading state without altering fixture');
+    assert(await evaluate(`document.querySelector('main form[data-confirm] button').getAttribute('aria-busy') === 'true'`), 'Confirmed action gets loading state without altering fixture');
     assert(await evaluate(`window.dispatchEvent(new Event('pageshow')); !document.querySelector('button[aria-busy]')`), 'Back/Forward restores loading buttons');
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     assert(await evaluate(`getComputedStyle(document.querySelector('button')).transitionDuration === '0s'`), 'Reduced-motion preference respected');
-    await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login');
+    await visit('/admin'); await signOut('admin');
     await signIn('customer');
     await checkPages([['ticket-booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['customer-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
     assert(await evaluate(`window.print = () => { window.ticketPrinted = true; }; document.querySelector('[data-print-ticket]').click(); window.ticketPrinted === true`), 'Print button invokes browser printing');
@@ -280,15 +348,15 @@ try {
     assert(offline.status === 200 && offline.disposition.includes('.html') && offline.html.includes('Preview Passenger') && offline.html.includes('@media print') && !offline.html.includes('<script'), 'Customer downloads a self-contained printable ticket');
     writeFileSync(join(artifacts, 'ticket-download.html'), offline.html);
     await checkPages([['my-bookings', '/bookings'], ['my-bookings-empty', '/bookings?status=cancelled'], ['cancellation-form', `/bookings/cancel?booking_id=${fixture.bookingId}`]], 'customer');
-    await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    await evaluate(`document.querySelector('main form[data-confirm]').requestSubmit(); true`);
     await respondToConfirmation(false);
-    assert(await evaluate(`!document.querySelector('form[data-confirm]').dataset.submitting`), 'Customer can dismiss cancellation confirmation');
-    await evaluate(`document.querySelector('#reason').value = 'Travel plans changed'; document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    assert(await evaluate(`!document.querySelector('main form[data-confirm]').dataset.submitting`), 'Customer can dismiss cancellation confirmation');
+    await evaluate(`document.querySelector('#reason').value = 'Travel plans changed'; document.querySelector('main form[data-confirm]').requestSubmit(); true`);
     await respondToConfirmation();
     await ready('/bookings/show'); await pause(100);
     assert(await evaluate(`document.body.textContent.includes('Cancellation Requested')`), 'Native cancellation request updates summary');
     await checkPages([['cancellation-requested-summary', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-requested', '/bookings?status=cancellation_requested']], 'customer');
-    await visit('/profile'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login');
+    await visit('/profile'); await signOut('customer');
     await signIn('admin'); await visit('/admin/cancellations');
     const cancellationId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a').href).searchParams.get('id'); })()`);
     await checkPages([['admin-cancellations', '/admin/cancellations'], ['admin-cancellation-details', `/admin/cancellations/show?id=${cancellationId}`], ['admin-approved-cancellations-empty', '/admin/cancellations?status=approved'], ['admin-rejected-cancellations-empty', '/admin/cancellations?status=rejected']], 'admin');
@@ -300,16 +368,16 @@ try {
     await ready('/admin/cancellations/show'); await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Rejected' && document.body.textContent.includes('Confirmed')`), 'Native rejection restores booking through submitter formaction');
     await checkPages([['admin-rejected-cancellation-details', `/admin/cancellations/show?id=${cancellationId}`]], 'admin');
-    await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login'); await signIn('customer');
-    await visit(`/bookings/cancel?booking_id=${fixture.bookingId}`); await evaluate(`document.querySelector('form[data-confirm]').requestSubmit(); true`); await respondToConfirmation(); await ready('/bookings/show'); await pause(100);
-    await visit('/profile'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login'); await signIn('admin'); await visit('/admin/cancellations');
+    await visit('/admin'); await signOut('admin'); await signIn('customer');
+    await visit(`/bookings/cancel?booking_id=${fixture.bookingId}`); await evaluate(`document.querySelector('main form[data-confirm]').requestSubmit(); true`); await respondToConfirmation(); await ready('/bookings/show'); await pause(100);
+    await visit('/profile'); await signOut('customer'); await signIn('admin'); await visit('/admin/cancellations');
     const retryId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a').href).searchParams.get('id'); })()`);
     await visit(`/admin/cancellations/show?id=${retryId}`); await evaluate(`const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[type="submit"]')); true`); await respondToConfirmation(); await ready('/admin/cancellations/show'); await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Approved' && document.body.textContent.includes('Cancelled') && document.body.textContent.includes('Released')`), 'Native approval cancels booking and releases seat');
     await checkPages([['admin-approved-cancellation-details', `/admin/cancellations/show?id=${retryId}`]], 'admin');
     await checkPages([['report-cancellation-history', `/admin/reports/cancellations?flight_id=${fixture.flightId}`]], 'admin');
     assert(await evaluate(`document.querySelector('[data-report-total]').textContent.trim() === '2' && document.querySelector('.report-table').textContent.includes('Approved') && document.querySelector('.report-table').textContent.includes('Rejected')`), 'Cancellation report reflects reviewed history without duplicate joins');
-    await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login'); await signIn('customer');
+    await visit('/admin'); await signOut('admin'); await signIn('customer');
     await checkPages([['cancelled-booking', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-cancelled', '/bookings?status=cancelled'], ['void-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
     assert(await evaluate(`document.querySelector('.ticket-invalid').textContent.includes('VOID TICKET')`), 'Cancelled ticket shows explicit invalid-for-travel warning');
     console.log(`${checks} browser UI checks passed. Screenshots: ${artifacts}`);

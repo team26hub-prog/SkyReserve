@@ -49,6 +49,6 @@ final class Auth
 
     public static function home(array $user): string
     {
-        return $user['role'] === 'admin' ? '/admin' : '/profile';
+        return $user['role'] === 'admin' ? '/admin' : '/';
     }
 }

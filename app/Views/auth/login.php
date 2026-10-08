@@ -3,7 +3,7 @@
 <h1><?= $escape($data['title']) ?></h1>
 <p class="muted"><?= $isAdmin ? 'Sign in with your administrator account.' : 'Sign in to manage your journey and choose your seat.' ?></p>
 <?php if (isset($data['error'])): ?>
-    <div class="notice error" role="alert"><?= $escape($data['error']) ?></div>
+    <div class="notice error" role="alert" data-auth-alert="error"><?= $escape($data['error']) ?></div>
 <?php endif; ?>
 <form action="<?= $isAdmin ? '/admin/login' : '/login' ?>" method="post" class="account-form">
     <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">

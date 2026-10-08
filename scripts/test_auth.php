@@ -146,6 +146,8 @@ try {
     $assert($request($guest, 'POST', '/register', $invalid)['status'] === 422, 'registration requires matching passwords');
     $response = $request($guest, 'POST', '/register', $fields);
     $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/login', 'customer registration succeeds');
+    $assert(str_contains($request($guest, 'GET', '/login')['body'], 'data-auth-alert="success"'), 'registration provides a success alert');
+    $assert(!str_contains($request($guest, 'GET', '/login')['body'], 'data-auth-alert="success"'), 'registration success alert is consumed once');
     $query = $db->prepare('SELECT * FROM users WHERE email = ?');
     $query->execute([$customerEmail]);
     $customer = $query->fetch();
@@ -162,7 +164,9 @@ try {
     $assert($response['status'] === 422 && str_contains($response['body'], 'Invalid email or password'), 'invalid customer login fails');
     $assert($request($guest, 'GET', '/profile')['status'] === 303, 'invalid login does not authenticate');
     $response = $request($guest, 'POST', '/login', ['_token' => $csrf, 'email' => $customerEmail, 'password' => $password]);
-    $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/profile', 'customer login succeeds');
+    $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/', 'customer login redirects to homepage');
+    $assert(str_contains($request($guest, 'GET', '/')['body'], 'data-auth-alert="success"'), 'homepage shows login success alert');
+    $assert(!str_contains($request($guest, 'GET', '/')['body'], 'data-auth-alert="success"'), 'login success alert is consumed once');
     $assert($before !== $sessionId($guest), 'session ID changes after customer login');
     $assert($request($guest, 'POST', '/logout', ['_token' => $csrf])['status'] === 403, 'pre-login CSRF token is invalidated');
     $profile = $request($guest, 'GET', '/profile');
@@ -177,6 +181,8 @@ try {
     $assert($request($replay, 'GET', '/profile')['status'] === 303, 'old session ID cannot access profile');
     $response = $request($guest, 'POST', '/logout', ['_token' => $token($profile)]);
     $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/login', 'customer logout succeeds');
+    $assert(str_contains($request($guest, 'GET', '/login')['body'], 'data-auth-alert="success"'), 'logout creates a success notice in a new anonymous session');
+    $assert(!str_contains($request($guest, 'GET', '/login')['body'], 'data-auth-alert="success"'), 'logout success alert is consumed once');
     $assert($request($guest, 'GET', '/profile')['status'] === 303, 'profile is protected after logout');
 
     $admin = $client();

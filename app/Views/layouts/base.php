@@ -13,7 +13,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
 <html lang="en" id="page-top">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#032539">
     <title><?= $escape($data['title'] ?? 'SkyReserve') ?> | SkyReserve</title>
     <link rel="stylesheet" href="/assets/css/app.css">
@@ -24,7 +24,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="site-header">
         <div class="header-inner">
-            <a class="brand" href="/" aria-label="SkyReserve home"><span class="brand-mark" aria-hidden="true">↗</span>Sky<span>Reserve</span></a>
+            <a class="brand" href="/" aria-label="SkyReserve home"><span class="brand-logo" aria-hidden="true"><img src="/assets/images/skyreserve-logo.png" alt="" width="1254" height="1254" decoding="async"></span>Sky<span>Reserve</span></a>
             <button class="menu-toggle" type="button" aria-controls="main-navigation" aria-expanded="false">Menu <span aria-hidden="true">☰</span></button>
             <nav id="main-navigation" class="main-nav" aria-label="Main navigation">
                 <a href="/"<?= $navCurrent('/') ?>>Home</a>
@@ -54,7 +54,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
         <main id="main-content" tabindex="-1" class="app-main<?= !empty($data['wide']) ? ' wide' : '' ?>">
             <?php require BASE_PATH . '/app/Views/layouts/back-navigation.php'; ?>
             <?php if ($data['flash']): ?>
-                <div class="notice success" role="status"><?= $escape($data['flash']) ?></div>
+                <div class="notice success" role="status"<?= !empty($data['authAlert']) ? ' data-auth-alert="success"' : '' ?>><?= $escape($data['flash']) ?></div>
             <?php endif; ?>
             <?php require $viewFile; ?>
         </main>
@@ -69,6 +69,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
             <a class="back-to-top" href="#page-top">Back to top <span aria-hidden="true">↑</span></a>
         </nav>
     </footer>
+    <?php require BASE_PATH . '/app/Views/layouts/mobile-navigation.php'; ?>
     <?php require BASE_PATH . '/app/Views/layouts/confirmation.php'; ?>
 </body>
 </html>

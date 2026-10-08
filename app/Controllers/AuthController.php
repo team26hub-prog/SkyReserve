@@ -70,7 +70,7 @@ final class AuthController extends Controller
             ]);
             return;
         }
-        Session::flash('Account created. You can now log in.');
+        Session::flash('Account created. You can now log in.', true);
         $this->redirect('/login');
     }
 
@@ -133,6 +133,7 @@ final class AuthController extends Controller
             return;
         }
         Auth::login($user);
+        Session::flash('Welcome back. You are now logged in.', true);
         $this->redirect(Auth::home($user));
     }
 
@@ -141,6 +142,10 @@ final class AuthController extends Controller
         $this->requireRole($role);
         $this->requireCsrf();
         Auth::logout();
+        // Start a new anonymous session for the one-time logout notice.
+        session_id('');
+        Session::start();
+        Session::flash('You have been logged out successfully.', true);
         $this->redirect($role === 'admin' ? '/admin/login' : '/login');
     }
 
