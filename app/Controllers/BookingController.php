@@ -8,11 +8,18 @@ use App\Models\Passenger;
 use App\Models\BookingSeat;
 use App\Models\Payment;
 use App\Models\Ticket;
+use App\Models\Cancellation;
 use DateTimeImmutable;
 use DomainException;
 final class BookingController extends Controller
 {
     public function __construct() { $this->requireRole('customer'); }
+    public function index(): void
+    {
+        $user = $this->requireRole('customer'); $status = $_GET['status'] ?? 'all'; $error = null;
+        if (!is_string($status) || ($status !== 'all' && !isset(Booking::STATUSES[$status]))) { http_response_code(422); $status = 'all'; $error = 'Choose a valid booking status.'; }
+        $this->render('customer/bookings/index', ['title' => 'My Bookings', 'wide' => true, 'status' => $status, 'error' => $error, 'bookings' => (new Booking())->listForCustomer((int) $user['id'], $status)]);
+    }
     public function create(): void
     {
         $flight = (new Flight())->findAvailable($this->id('flight_id'));
@@ -67,7 +74,7 @@ final class BookingController extends Controller
         $user = $this->requireRole('customer');
         $booking = (new Booking())->findForCustomer($this->id('id'), (int) $user['id']);
         if (!$booking) { $this->missing(); return; }
-        $this->render('customer/bookings/show', ['title' => 'Booking summary', 'booking' => $booking, 'flight' => (new Flight())->find((int) $booking['flight_id']), 'passengers' => (new Passenger())->forBooking((int) $booking['id']), 'assignments' => (new BookingSeat())->forBooking((int) $booking['id']), 'payments' => (new Payment())->forBooking((int) $booking['id']), 'tickets' => (new Ticket())->forBooking((int) $booking['id'])]);
+        $this->render('customer/bookings/show', ['title' => 'Booking summary', 'booking' => $booking, 'flight' => (new Flight())->find((int) $booking['flight_id']), 'passengers' => (new Passenger())->forBooking((int) $booking['id']), 'assignments' => (new BookingSeat())->forBooking((int) $booking['id']), 'payments' => (new Payment())->forBooking((int) $booking['id']), 'tickets' => (new Ticket())->forBooking((int) $booking['id']), 'cancellations' => (new Cancellation())->forBooking((int) $booking['id'])]);
     }
     private function id(string $key): int
     {

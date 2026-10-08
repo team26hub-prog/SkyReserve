@@ -14,6 +14,7 @@
 .ticket-grid dt, .ticket-grid dd { padding: 0; border: 0; }
 .ticket-grid dd { margin: 4px 0 0; font-weight: 650; overflow-wrap: anywhere; }
 .ticket-footer { padding: 20px 28px; border-top: 1px dashed #9bb5c2; font-size: 13px; }
+.ticket-invalid { margin: 0; padding: 16px 28px; color: #9b2525; background: #fff3f3; font-weight: 700; }
 .ticket-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 24px; }
 .ticket-actions p { flex-basis: 100%; margin: 0; }
 .ticket-download { margin: 0; padding: 32px 16px; background: #FBF3F2; }

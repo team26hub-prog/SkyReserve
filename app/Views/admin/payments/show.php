@@ -1,11 +1,11 @@
-<?php use App\Models\Payment; $payment = $data['payment']; ?>
+<?php use App\Models\Payment; use App\Models\Booking; $payment = $data['payment']; ?>
 <span class="eyebrow">Operations · Manual verification</span>
 <div class="page-heading"><h1>Payment details</h1><span class="badge" data-status="<?= $escape($payment['status']) ?>"><?= $escape(ucfirst($payment['status'])) ?></span></div>
 <?php if ($data['error']): ?><div class="notice error" role="alert"><?= $escape($data['error']) ?></div><?php endif; ?>
 <dl class="profile-details">
     <dt>Customer</dt><dd><?= $escape($payment['customer_name']) ?><small class="cell-note"><?= $escape($payment['customer_email']) ?></small></dd>
     <dt>Booking reference / PNR</dt><dd><strong><?= $escape($payment['booking_reference']) ?></strong></dd>
-    <dt>Booking status</dt><dd><?= $payment['booking_status'] === 'payment_submitted' ? 'Payment Submitted / Awaiting Verification' : ($payment['booking_status'] === 'pending' ? 'Pending Payment' : $escape(ucfirst($payment['booking_status']))) ?></dd>
+    <dt>Booking status</dt><dd><?= $escape(Booking::statusLabel($payment['booking_status'])) ?></dd>
     <dt>Flight</dt><dd><?= $escape($payment['flight_number'] . ' — ' . $payment['origin_code'] . ' → ' . $payment['destination_code']) ?></dd>
     <dt>Departure (UTC)</dt><dd><?= $escape($payment['departure_at']) ?></dd>
     <dt>Arrival (UTC)</dt><dd><?= $escape($payment['arrival_at']) ?></dd>

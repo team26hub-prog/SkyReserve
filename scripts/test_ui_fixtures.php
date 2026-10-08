@@ -12,7 +12,7 @@ if (($argv[1] ?? '') === '--cleanup') {
     $db->beginTransaction();
     try {
         $db->prepare('DELETE FROM tickets WHERE booking_seat_id IN (SELECT id FROM booking_seats WHERE booking_id = ?)')->execute([$fixture['bookingId']]);
-        foreach (['payments', 'booking_seats', 'passengers'] as $table) {
+        foreach (['cancellations', 'payments', 'booking_seats', 'passengers'] as $table) {
             $db->prepare("DELETE FROM $table WHERE booking_id = ?")->execute([$fixture['bookingId']]);
         }
         $db->prepare('DELETE FROM bookings WHERE id = ?')->execute([$fixture['bookingId']]);

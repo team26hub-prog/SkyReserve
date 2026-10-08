@@ -16,6 +16,8 @@ use App\Controllers\SeatSelectionController;
 use App\Controllers\PaymentController;
 use App\Controllers\AdminPaymentController;
 use App\Controllers\TicketController;
+use App\Controllers\CancellationController;
+use App\Controllers\AdminCancellationController;
 
 return [
     'GET' => [
@@ -27,6 +29,10 @@ return [
         '/flights/show' => [FlightSearchController::class, 'show'],
         '/bookings/create' => [BookingController::class, 'create'],
         '/bookings/show' => [BookingController::class, 'show'],
+        '/bookings' => [BookingController::class, 'index'],
+        '/bookings/cancel' => [CancellationController::class, 'create'],
+        '/admin/cancellations' => [AdminCancellationController::class, 'index'],
+        '/admin/cancellations/show' => [AdminCancellationController::class, 'show'],
         '/bookings/seats' => [SeatSelectionController::class, 'index'],
         '/bookings/payment' => [PaymentController::class, 'create'],
         '/payments/receipt' => [PaymentController::class, 'receipt'],
@@ -60,6 +66,9 @@ return [
         '/bookings' => [BookingController::class, 'store'],
         '/bookings/seats' => [SeatSelectionController::class, 'store'],
         '/bookings/payment' => [PaymentController::class, 'store'],
+        '/bookings/cancel' => [CancellationController::class, 'store'],
+        '/admin/cancellations/approve' => [AdminCancellationController::class, 'approve'],
+        '/admin/cancellations/reject' => [AdminCancellationController::class, 'reject'],
         '/bookings/tickets' => [TicketController::class, 'generate'],
         '/admin/bookings/tickets' => [TicketController::class, 'adminGenerate'],
         '/admin/login' => [AuthController::class, 'adminLogin'],

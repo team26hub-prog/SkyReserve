@@ -71,7 +71,7 @@ const checkPages = async (pages, group) => {
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
-            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details', 'admin-ticket', 'customer-ticket'].includes(name) && width !== 768) {
+            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details', 'admin-ticket', 'customer-ticket', 'my-bookings', 'cancellation-form', 'admin-cancellations', 'admin-cancellation-details', 'cancelled-booking', 'void-ticket'].includes(name) && width !== 768) {
                 const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
                 writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
             }
@@ -171,6 +171,32 @@ try {
     const offline = await evaluate(`(async () => { const response = await fetch('/tickets/download?id=${ticketId}'); return { status: response.status, disposition: response.headers.get('content-disposition'), html: await response.text() }; })()`);
     assert(offline.status === 200 && offline.disposition.includes('.html') && offline.html.includes('Preview Passenger') && offline.html.includes('@media print') && !offline.html.includes('<script'), 'Customer downloads a self-contained printable ticket');
     writeFileSync(join(artifacts, 'ticket-download.html'), offline.html);
+    await checkPages([['my-bookings', '/bookings'], ['my-bookings-empty', '/bookings?status=cancelled'], ['cancellation-form', `/bookings/cancel?booking_id=${fixture.bookingId}`]], 'customer');
+    assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector('button') }); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Customer can dismiss cancellation confirmation');
+    await evaluate(`window.confirm = () => true; document.querySelector('#reason').value = 'Travel plans changed'; document.querySelector('form[data-confirm]').requestSubmit(); true`);
+    await ready('/bookings/show'); await pause(100);
+    assert(await evaluate(`document.body.textContent.includes('Cancellation Requested')`), 'Native cancellation request updates summary');
+    await checkPages([['cancellation-requested-summary', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-requested', '/bookings?status=cancellation_requested']], 'customer');
+    await visit('/profile'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login');
+    await signIn('admin'); await visit('/admin/cancellations');
+    const cancellationId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a').href).searchParams.get('id'); })()`);
+    await checkPages([['admin-cancellations', '/admin/cancellations'], ['admin-cancellation-details', `/admin/cancellations/show?id=${cancellationId}`], ['admin-approved-cancellations-empty', '/admin/cancellations?status=approved'], ['admin-rejected-cancellations-empty', '/admin/cancellations?status=rejected']], 'admin');
+    assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/cancellations'`), 'Cancellation pages highlight admin navigation');
+    await visit(`/admin/cancellations/show?id=${cancellationId}`);
+    await evaluate(`window.confirm = () => true; document.querySelector('#note').value = 'Retain booking'; const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[formaction]')); true`);
+    await ready('/admin/cancellations/show'); await pause(100);
+    assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Rejected' && document.body.textContent.includes('Confirmed')`), 'Native rejection restores booking through submitter formaction');
+    await checkPages([['admin-rejected-cancellation-details', `/admin/cancellations/show?id=${cancellationId}`]], 'admin');
+    await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login'); await signIn('customer');
+    await visit(`/bookings/cancel?booking_id=${fixture.bookingId}`); await evaluate(`window.confirm = () => true; document.querySelector('form[data-confirm]').requestSubmit(); true`); await ready('/bookings/show'); await pause(100);
+    await visit('/profile'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/login'); await signIn('admin'); await visit('/admin/cancellations');
+    const retryId = await evaluate(`(() => { const row = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a').href).searchParams.get('id'); })()`);
+    await visit(`/admin/cancellations/show?id=${retryId}`); await evaluate(`window.confirm = () => true; const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[type="submit"]')); true`); await ready('/admin/cancellations/show'); await pause(100);
+    assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Approved' && document.body.textContent.includes('Cancelled') && document.body.textContent.includes('Released')`), 'Native approval cancels booking and releases seat');
+    await checkPages([['admin-approved-cancellation-details', `/admin/cancellations/show?id=${retryId}`]], 'admin');
+    await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login'); await signIn('customer');
+    await checkPages([['cancelled-booking', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-cancelled', '/bookings?status=cancelled'], ['void-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
+    assert(await evaluate(`document.querySelector('.ticket-invalid').textContent.includes('VOID TICKET')`), 'Cancelled ticket shows explicit invalid-for-travel warning');
     console.log(`${checks} browser UI checks passed. Screenshots: ${artifacts}`);
 } finally {
     if (fixture) execFileSync(php, [fixtureScript, '--cleanup'], { input: JSON.stringify(fixture) });

@@ -4,7 +4,7 @@
     <div class="ticket-route"><div><span class="ticket-label">Departure</span><strong><?= $escape($ticket['origin_code']) ?></strong><p><?= $escape($ticket['origin_name']) ?></p></div><span aria-hidden="true">→</span><div><span class="ticket-label">Arrival</span><strong><?= $escape($ticket['destination_code']) ?></strong><p><?= $escape($ticket['destination_name']) ?></p></div></div>
     <dl class="ticket-grid">
         <div><dt>Booking reference / PNR</dt><dd><?= $escape($ticket['booking_reference']) ?></dd></div>
-        <div><dt>Booking status</dt><dd><?= $escape(ucfirst($ticket['booking_status'])) ?></dd></div>
+        <div><dt>Booking status</dt><dd><?= $escape(\App\Models\Booking::statusLabel($ticket['booking_status'])) ?></dd></div>
         <div><dt>Passenger name</dt><dd><?= $escape($name) ?></dd></div>
         <div><dt>CNIC / Passport</dt><dd><?= $escape($ticket['document_number'] ?? '') ?></dd></div>
         <div><dt>Flight number</dt><dd><?= $escape($ticket['flight_number']) ?></dd></div>
@@ -15,5 +15,6 @@
         <div><dt>Ticket status</dt><dd><?= $escape(ucfirst($ticket['status'])) ?></dd></div>
         <div><dt>Issued at (UTC)</dt><dd><?= $escape($ticket['issued_at']) ?></dd></div>
     </dl>
+    <?php if ($ticket['status'] === 'void'): ?><p class="ticket-invalid" role="status">VOID TICKET — This ticket is no longer valid for travel.</p><?php endif; ?>
     <footer class="ticket-footer">Thank you for choosing SkyReserve. All times shown are UTC.</footer>
 </article>

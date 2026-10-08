@@ -1,4 +1,4 @@
--- Current schema through Module 8. Import into an empty MySQL 8.0.16+ database.
+-- Current schema through Module 11. Import into an empty MySQL 8.0.16+ database.
 -- All times are UTC. Monetary values use the booking's currency.
 -- This is an initial schema, not a migration: existing tables cause an error.
 SET NAMES utf8mb4;
@@ -92,7 +92,7 @@ CREATE TABLE bookings (
     flight_id BIGINT UNSIGNED NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
     currency CHAR(3) NOT NULL DEFAULT 'PKR',
-    status ENUM('pending', 'confirmed', 'cancelled', 'expired', 'payment_submitted') NOT NULL DEFAULT 'pending',
+    status ENUM('pending', 'confirmed', 'cancelled', 'expired', 'payment_submitted', 'cancellation_requested') NOT NULL DEFAULT 'pending',
     expires_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -198,14 +198,17 @@ CREATE TABLE cancellations (
     booking_id BIGINT UNSIGNED NOT NULL,
     requested_by BIGINT UNSIGNED NOT NULL,
     reason TEXT NULL,
+    previous_booking_status ENUM('pending', 'payment_submitted', 'confirmed') NULL,
     status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+    active_booking_id BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN status = 'pending' THEN booking_id ELSE NULL END) STORED,
     refund_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     reviewed_by BIGINT UNSIGNED NULL,
     reviewed_at DATETIME NULL,
     review_notes TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_cancellations_booking (booking_id),
+    KEY idx_cancellations_booking (booking_id),
+    UNIQUE KEY uq_cancellations_active_booking (active_booking_id),
     KEY idx_cancellations_requester (requested_by),
     KEY idx_cancellations_reviewer (reviewed_by),
     KEY idx_cancellations_status_created (status, created_at),

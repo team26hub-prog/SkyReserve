@@ -1,0 +1,9 @@
+<?php use App\Models\Cancellation; ?>
+<span class="eyebrow">Operations · Booking requests</span><h1>Cancellations</h1>
+<p class="muted">Review cancellation requests. Payment records remain manual and unchanged.</p>
+<?php if ($data['error']): ?><p class="notice error" role="alert"><?= $escape($data['error']) ?></p><?php endif; ?>
+<nav class="filter-tabs" aria-label="Cancellation status filters"><?php foreach (Cancellation::STATUSES as $status => $label): ?><a href="/admin/cancellations?status=<?= $status ?>"<?= $status === $data['status'] ? ' aria-current="page"' : '' ?>><?= $escape($label) ?></a><?php endforeach; ?></nav>
+<?php if (!$data['requests']): ?><p class="empty-state">No <?= $escape($data['status']) ?> cancellation requests.</p><?php else: ?>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Cancellation requests"><table><caption class="sr-only">Cancellation requests and review links</caption><thead><tr><th scope="col">Booking / PNR</th><th scope="col">Customer</th><th scope="col">Flight / route</th><th scope="col">Requested (UTC)</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>
+<?php foreach ($data['requests'] as $request): ?><tr><td><?= $escape($request['booking_reference']) ?></td><td><?= $escape($request['customer_name']) ?><small class="cell-note"><?= $escape($request['customer_email']) ?></small></td><td><?= $escape($request['flight_number']) ?><small class="cell-note"><?= $escape($request['origin_code'] . ' → ' . $request['destination_code']) ?></small></td><td><?= $escape($request['created_at']) ?></td><td><span class="badge" data-status="<?= $escape($request['status']) ?>"><?= $escape(ucfirst($request['status'])) ?></span></td><td><a href="/admin/cancellations/show?id=<?= (int) $request['id'] ?>">View request</a></td></tr><?php endforeach; ?>
+</tbody></table></div><?php endif; ?>

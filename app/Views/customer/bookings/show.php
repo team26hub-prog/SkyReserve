@@ -1,9 +1,9 @@
-<?php use App\Models\Payment; $booking = $data['booking']; $flight = $data['flight']; ?>
+<?php use App\Models\Payment; use App\Models\Booking; use App\Models\Cancellation; $booking = $data['booking']; $flight = $data['flight']; ?>
 <span class="eyebrow">Your journey at a glance</span>
 <h1>Booking summary</h1>
 <dl class="profile-details">
     <dt>Booking reference / PNR</dt><dd><strong><?= $escape($booking['booking_reference']) ?></strong></dd>
-    <dt>Booking status</dt><dd><span class="badge" data-status="<?= $escape($booking['status']) ?>"><?= match ($booking['status']) { 'pending' => 'Pending Payment', 'payment_submitted' => 'Payment Submitted / Awaiting Verification', default => $escape(ucfirst($booking['status'])) } ?></span></dd>
+    <dt>Booking status</dt><dd><span class="badge" data-status="<?= $escape($booking['status']) ?>"><?= $escape(Booking::statusLabel($booking['status'])) ?></span></dd>
     <dt>Flight</dt><dd><?= $escape($flight['flight_number']) ?></dd>
     <dt>Route</dt><dd><?= $escape($flight['origin_name'] . ' (' . $flight['origin_code'] . ') → ' . $flight['destination_name'] . ' (' . $flight['destination_code'] . ')') ?></dd>
     <dt>Departure (UTC)</dt><dd><?= $escape($flight['departure_at']) ?></dd>
@@ -47,3 +47,6 @@ $ticketPrefix = ''; $ticketBookingId = (int) $booking['id'];
 $ticketEligible = $booking['status'] === 'confirmed' && (bool) array_filter($data['payments'], static fn (array $payment): bool => $payment['status'] === 'verified');
 require BASE_PATH . '/app/Views/tickets/booking-links.php';
 ?>
+<?php require BASE_PATH . '/app/Views/customer/cancellations/history.php'; ?>
+<?php if (Cancellation::eligible($booking, $flight)): ?><p><a class="button button-danger" href="/bookings/cancel?booking_id=<?= (int) $booking['id'] ?>">Request cancellation</a></p><?php endif; ?>
+<p><a href="/bookings">Return to My Bookings</a></p>

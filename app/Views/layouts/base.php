@@ -30,6 +30,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
                 <a href="/"<?= $navCurrent('/') ?>>Home</a>
                 <a href="/flights"<?= $navCurrent('/flights') ?>>Search flights</a>
                 <?php if ($data['user']): ?>
+                    <?php if ($data['user']['role'] === 'customer'): ?><a href="/bookings"<?= str_starts_with($currentPath, '/bookings') ? ' aria-current="page"' : '' ?>>My Bookings</a><?php endif; ?>
                     <a href="<?= $data['user']['role'] === 'admin' ? '/admin' : '/profile' ?>"<?= $navCurrent($data['user']['role'] === 'admin' ? '/admin' : '/profile') ?>><?= $data['user']['role'] === 'admin' ? 'Admin area' : 'Your profile' ?></a>
                     <form class="logout-form" action="<?= $data['user']['role'] === 'admin' ? '/admin/logout' : '/logout' ?>" method="post">
                         <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">

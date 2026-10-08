@@ -91,7 +91,7 @@ try {
     $reject('one ticket per allocation', $ticketSql, [$allocation, 'U-' . $suffix]);
     $cancellationSql = 'INSERT INTO cancellations (booking_id, requested_by) VALUES (?, ?)';
     $insert($cancellationSql, [$booking, $user]);
-    $reject('one cancellation record per booking', $cancellationSql, [$booking, $user]);
+    $reject('one pending cancellation request per booking', $cancellationSql, [$booking, $user]);
 
     $db->rollBack();
     echo $checks . ' schema checks passed. All fixtures rolled back.' . PHP_EOL;

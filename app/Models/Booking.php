@@ -6,6 +6,26 @@ use PDOException;
 use Throwable;
 final class Booking extends Model
 {
+    public const STATUSES = ['pending' => 'Pending Payment', 'payment_submitted' => 'Payment Submitted / Awaiting Verification', 'confirmed' => 'Confirmed', 'cancellation_requested' => 'Cancellation Requested', 'cancelled' => 'Cancelled', 'expired' => 'Expired'];
+    public static function statusLabel(string $status): string { return self::STATUSES[$status] ?? ucfirst($status); }
+    public function listForCustomer(int $customerId, string $status = 'all'): array
+    {
+        if ($status !== 'all' && !isset(self::STATUSES[$status])) throw new DomainException('Choose a valid booking status.');
+        $query = $this->db()->prepare("SELECT b.*, f.flight_number, f.departure_at, f.status AS flight_status,
+            o.iata_code AS origin_code, d.iata_code AS destination_code,
+            (SELECT p.status FROM payments p WHERE p.booking_id = b.id ORDER BY p.id DESC LIMIT 1) AS payment_status
+            FROM bookings b JOIN flights f ON f.id = b.flight_id
+            JOIN airports o ON o.id = f.origin_airport_id JOIN airports d ON d.id = f.destination_airport_id
+            WHERE b.user_id = ?" . ($status === 'all' ? '' : ' AND b.status = ?') . ' ORDER BY f.departure_at DESC, b.id DESC');
+        $query->execute($status === 'all' ? [$customerId] : [$customerId,$status]);
+        $rows = $query->fetchAll();
+        foreach ($rows as &$row) {
+            $row['passengers'] = (new Passenger())->forBooking((int) $row['id']);
+            $row['assignments'] = (new BookingSeat())->forBooking((int) $row['id']);
+            $row['tickets'] = (new Ticket())->forBooking((int) $row['id']);
+        }
+        unset($row); return $rows;
+    }
     public function findForCustomer(int $id, int $customerId): ?array
     {
         $query = $this->db()->prepare('SELECT * FROM bookings WHERE id = ? AND user_id = ?');
