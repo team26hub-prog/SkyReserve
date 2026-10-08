@@ -1,6 +1,9 @@
 'use strict';
 
 document.documentElement.classList.add('js');
+document.querySelectorAll('[data-print-ticket]').forEach((button) => {
+    button.addEventListener('click', () => window.print());
+});
 const errorNotice = document.querySelector('.notice.error[role="alert"]');
 if (errorNotice) {
     errorNotice.setAttribute('tabindex', '-1');

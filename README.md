@@ -1,6 +1,6 @@
-# SkyReserve — Modules 1–9
+# SkyReserve — Modules 1–10
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing; Module 9 adds admin payment verification and rejection. Ticket generation, cancellations, and refunds are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing; Module 9 adds admin payment verification and rejection; Module 10 adds protected ticket generation, viewing, printing, and HTML download. Cancellations, refunds, check-in, and boarding passes are not implemented.
 
 ## Requirements
 
@@ -18,6 +18,7 @@ app/
   Controllers/SeatSelectionController.php Owner-only seat map and assignment
   Controllers/PaymentController.php     Owner-only payment submission and receipt access
   Controllers/AdminPaymentController.php Admin payment list, details, review, and receipt access
+  Controllers/TicketController.php      Customer/admin ticket generation, viewing, and download
   Core/Controller.php                   Rendering, redirects, role/CSRF guards
   Core/Auth.php                         Current-user lookup and sign-in/out
   Core/Session.php                      Session cookies, CSRF, flash messages
@@ -33,6 +34,7 @@ app/
   Models/Passenger.php                  Passenger persistence
   Models/BookingSeat.php                Seat availability and transactional assignment
   Models/Payment.php                    Payment persistence, eligibility, and duplicate protection
+  Models/Ticket.php                     Transactional issuance and authorized ticket queries
   Views/                               Home, auth, customer, admin, errors
   Views/layouts/base.php                Shared minimal layout
 config/                                 Database settings read from environment
@@ -57,6 +59,7 @@ scripts/test_seat_selection.php         Seat selection, ownership, and concurren
 scripts/migrate_module8.php             Repeat-safe payment/state/constraint upgrade
 scripts/test_payments.php               Upload, payment, authorization, and rollback tests
 scripts/test_payment_reviews.php        Admin review, audit, authorization, and concurrency tests
+scripts/test_tickets.php                Ticket issuance, ownership, content, and concurrency tests
 storage/payment_receipts/               Private receipt files, ignored by Git
 config/payments.php                     Demo/configurable airline payment instructions
 bootstrap.php                           App autoloading and UTC setup
@@ -387,7 +390,7 @@ Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownersh
 
 Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
 
-Modules 8 and 9 are implemented below. Module 10 requires explicit approval.
+Modules 8–10 are implemented below. Module 11 requires explicit approval.
 
 ## SkyReserve interface refresh
 
@@ -499,4 +502,46 @@ Local verification: **74 Module 9 checks and all 445 Modules 1–8 checks passed
 
 Created: `AdminPaymentController.php`, three `app/Views/admin/payments/` views, and `scripts/test_payment_reviews.php`. Updated: `Payment.php`, shared receipt streaming and customer receipt controller, admin dashboard/controller/navigation, customer booking summary, routes, shared CSS, browser tests, and this README.
 
-Module 10 requires explicit approval before implementation.
+## Module 10: Ticket generation
+
+After payment verification, the customer can open the booking summary and choose **Generate ticket**. Admins can issue or view tickets from the related payment detail page. Generation is explicit: payment verification itself does not issue tickets. After issuance, the summary and admin payment detail page provide ticket links. The ticket includes SkyReserve branding, a unique ticket number, PNR, passenger name and CNIC/passport, flight number, full departure/arrival airports, UTC departure/arrival times, seat/class, fare captured at booking, booking/ticket status, and issuance time.
+
+| Method | Route | Access / purpose |
+| --- | --- | --- |
+| POST | `/bookings/tickets?booking_id=…` | Customer owner; generate booking tickets |
+| GET / HEAD | `/tickets/show?id=…` | Customer owner; view and print ticket |
+| GET / HEAD | `/tickets/download?id=…` | Customer owner; download printable HTML |
+| POST | `/admin/bookings/tickets?booking_id=…` | Active admin; generate from payment flow |
+| GET / HEAD | `/admin/tickets/show?id=…` | Active admin; view related ticket |
+| GET / HEAD | `/admin/tickets/download?id=…` | Active admin; download related ticket |
+
+Every request checks the current active user and route role. Guests redirect to the appropriate login; wrong-role access returns 403. Inaccessible/missing ticket or booking IDs return 404, including HEAD requests. POST issuance requires a session CSRF token. GET browsing and downloads never generate records. Invalid eligibility or duplicate generation returns 409; failed writes return a generic 503 without exposing database or filesystem details.
+
+Issuance requires a Confirmed booking and an existing Verified payment. The flight must still be Scheduled or Delayed and upcoming, and the aircraft active. Every passenger must be active, have a name and identity document, and have an active reserved/confirmed seat allocation matching the booking's flight and aircraft. Released, missing, or inactive seats are rejected. All passengers are validated before inserting any ticket; a single transaction issues one ticket per passenger and rolls back all inserts on failure. A ticket already issued for any passenger blocks another batch rather than replacing existing tickets.
+
+The transaction follows the existing flight → booking → aircraft/payment locking order and locks passenger, allocation, seat, and ticket rows while rechecking eligibility. Active actor/ownership is checked again inside the transaction. Concurrent issuance for one booking serializes, producing one winner. Ticket numbers use `SR-T-` plus 24 random hexadecimal characters, with bounded collision retries and the existing unique index. User-supplied numbers/statuses are ignored. Booking, payment, and seat-allocation statuses remain unchanged by issuance.
+
+### Printing and download
+
+The shared ticket document is used by customer/admin views and the download. **Print ticket** calls the browser print dialog, where the customer can print or choose Save as PDF. `public/assets/css/ticket.css` provides responsive layout and A4 print rules that hide navigation, sidebar, buttons, notices, and footer while retaining the complete ticket.
+
+**Download ticket (HTML)** returns an authorized attachment containing escaped ticket details and embedded ticket CSS, with no external assets or scripts. It works offline and can be printed from the browser. Responses are private/no-store and use a restrictive content security policy. This module adds no PDF package or frontend framework; PDF export uses browser printing. Issued tickets remain viewable after departure.
+
+### Database usage and tests
+
+No schema changes or migration are needed. The existing `tickets` table stores ticket number, allocation reference, status, issuance time, and timestamps. `uq_tickets_number` guarantees unique numbers; `uq_tickets_booking_seat` and the existing one-allocation-per-passenger constraint prevent duplicate passenger tickets. Composite allocation foreign keys protect booking/passenger/flight/aircraft/seat consistency. Ticket details read the existing linked booking/passenger/flight/seat records; this module does not introduce an immutable document snapshot or new storage directory.
+
+With MySQL and the development server running, use another terminal:
+
+```powershell
+php scripts/test_tickets.php http://127.0.0.1:8000
+node scripts/test_ui.mjs http://127.0.0.1:8000
+```
+
+Tests use unique disposable local fixtures shared with the server's database. They cover multi-passenger issuance, unique numbers and database constraints, unverified/unconfirmed states, missing/invalid passengers and seats, wrong-aircraft constraints, departed/unavailable flights, duplicates, customer ownership, admin access, CSRF, escaped content, booking/payment links, and private printable HTML GET/HEAD downloads. Two independent PDO processes race issuance and assert one winner. A temporary allocation-scoped MySQL trigger forces the second insert to fail and verifies complete rollback; local CREATE TRIGGER/DROP TRIGGER privileges are needed. Fixtures and trigger are removed in cleanup; forced termination may leave test data behind.
+
+Local verification: **78 Module 10 checks and all 519 Modules 1–9 checks passed**. The browser suite passed **336 Chrome checks across 35 pages** at 375/768/1440px, including native issuance, owner/admin views, active navigation, print-button behavior, a one-page A4 PDF, and self-contained HTML download. All 93 PHP files and both JavaScript files passed syntax checks. Browser artifacts include ticket screenshots, a printable PDF, and the downloaded HTML in the temporary directory printed by the test.
+
+Created: `TicketController.php`, `Ticket.php`, shared/customer/admin ticket views, `public/assets/css/ticket.css`, and `scripts/test_tickets.php`. Updated: booking and admin payment controllers/views, shared layout/admin navigation, routes, vanilla JavaScript print interaction, browser tests/fixture cleanup, and this README.
+
+Module 11 requires explicit approval before implementation.

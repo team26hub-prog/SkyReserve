@@ -42,3 +42,8 @@
 <?php if ($booking['status'] === 'pending' && !array_filter($data['payments'], static fn (array $payment): bool => in_array($payment['status'], ['pending', 'verified'], true))): ?>
     <p><a class="button" href="/bookings/payment?booking_id=<?= (int) $booking['id'] ?>">Submit payment</a></p>
 <?php endif; ?>
+<?php
+$ticketPrefix = ''; $ticketBookingId = (int) $booking['id'];
+$ticketEligible = $booking['status'] === 'confirmed' && (bool) array_filter($data['payments'], static fn (array $payment): bool => $payment['status'] === 'verified');
+require BASE_PATH . '/app/Views/tickets/booking-links.php';
+?>

@@ -1,0 +1,2 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= $escape($ticket['ticket_number']) ?> | SkyReserve</title><style><?php readfile(BASE_PATH . '/public/assets/css/ticket.css'); ?></style></head><body class="ticket-download"><main><?php require BASE_PATH . '/app/Views/tickets/document.php'; ?></main></body></html>

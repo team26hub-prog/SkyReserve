@@ -8,6 +8,7 @@ use App\Core\PaymentReceipt;
 use App\Core\Session;
 use App\Models\Payment;
 use App\Models\Passenger;
+use App\Models\Ticket;
 use DomainException;
 use OutOfBoundsException;
 use Throwable;
@@ -87,6 +88,7 @@ final class AdminPaymentController extends Controller
         $this->render('admin/payments/show', [
             'title' => 'Payment details', 'payment' => $payment, 'error' => $error, 'reason' => $reason,
             'passengers' => (new Passenger())->forBooking((int) $payment['booking_id']),
+            'tickets' => (new Ticket())->forBooking((int) $payment['booking_id']),
         ]);
     }
 

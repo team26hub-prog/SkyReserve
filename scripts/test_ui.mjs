@@ -71,7 +71,7 @@ const checkPages = async (pages, group) => {
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
-            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details'].includes(name) && width !== 768) {
+            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details', 'admin-ticket', 'customer-ticket'].includes(name) && width !== 768) {
                 const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
                 writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
             }
@@ -111,6 +111,10 @@ try {
     assert(await evaluate(`document.querySelector('.account-form').requestSubmit(); !!document.querySelector('[aria-invalid="true"]') && document.querySelector('.form-feedback').textContent.includes('highlighted')`), 'Native validation gives accessible feedback');
     await signIn('customer');
     await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`], ['payment-form', `/bookings/payment?booking_id=${fixture.bookingId}`]], 'customer');
+    await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
+    await evaluate(`document.querySelector('#passenger_id').selectedIndex = 1; document.querySelector('input[name="seat_id"][value="${fixture.seatId}"]').checked = true; document.querySelector('.account-form').requestSubmit(); true`);
+    await ready('/bookings/show'); await pause(100);
+    assert(await evaluate(`document.body.textContent.includes('2A')`), 'Native seat selection prepares passenger for ticket');
     await visit(`/bookings/payment?booking_id=${fixture.bookingId}`);
     await evaluate(`document.getElementById('method').value = 'bank_transfer'; document.getElementById('transaction_reference').value = 'UI-DEMO-REFERENCE'; document.querySelector('.account-form').requestSubmit(); true`);
     await ready('/bookings/show');
@@ -139,6 +143,20 @@ try {
     await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Verified' && document.body.textContent.includes('Confirmed')`), 'Native admin verification works with shared confirmation and loading interactions');
     await checkPages([['admin-verified-details', `/admin/payments/show?id=${paymentId}`]], 'admin');
+    await evaluate(`document.querySelector('form[action^="/admin/bookings/tickets"]').requestSubmit(); true`);
+    await ready('/admin/tickets/show'); await pause(100);
+    const ticketId = await evaluate(`new URL(location.href).searchParams.get('id')`);
+    assert(await evaluate(`document.querySelector('.ticket-document').textContent.includes('Preview Passenger')`), 'Native ticket generation works from verified admin payment');
+    await checkPages([['admin-ticket', `/admin/tickets/show?id=${ticketId}`]], 'admin');
+    assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/payments'`), 'Admin ticket highlights related Payments navigation');
+    await command('Emulation.setEmulatedMedia', { media: 'print' });
+    assert(await evaluate(`getComputedStyle(document.querySelector('.site-header')).display === 'none' && getComputedStyle(document.querySelector('.admin-sidebar')).display === 'none' && getComputedStyle(document.querySelector('.ticket-actions')).display === 'none' && getComputedStyle(document.querySelector('.ticket-document')).display !== 'none'`), 'Print hides navigation and actions while preserving ticket');
+    const printed = await command('Page.printToPDF', { printBackground: true, preferCSSPageSize: true });
+    const pdf = Buffer.from(printed.data, 'base64');
+    assert(pdf.subarray(0, 5).toString() === '%PDF-' && pdf.length > 1000, 'Browser renders printable ticket PDF');
+    assert((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length === 1, 'Ticket prints on one A4 page');
+    writeFileSync(join(artifacts, 'ticket-print.pdf'), pdf);
+    await command('Emulation.setEmulatedMedia', { media: '' });
     await visit(`/admin/seats?aircraft_id=${fixture.aircraftId}`);
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/aircraft'`), 'Seat pages highlight Aircraft & seats');
     assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new Event('submit', {bubbles:true, cancelable:true}); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Cancelled delete stays on page without loading state');
@@ -146,6 +164,13 @@ try {
     assert(await evaluate(`window.dispatchEvent(new Event('pageshow')); !document.querySelector('button[aria-busy]')`), 'Back/Forward restores loading buttons');
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     assert(await evaluate(`getComputedStyle(document.querySelector('button')).transitionDuration === '0s'`), 'Reduced-motion preference respected');
+    await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login');
+    await signIn('customer');
+    await checkPages([['ticket-booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['customer-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
+    assert(await evaluate(`window.print = () => { window.ticketPrinted = true; }; document.querySelector('[data-print-ticket]').click(); window.ticketPrinted === true`), 'Print button invokes browser printing');
+    const offline = await evaluate(`(async () => { const response = await fetch('/tickets/download?id=${ticketId}'); return { status: response.status, disposition: response.headers.get('content-disposition'), html: await response.text() }; })()`);
+    assert(offline.status === 200 && offline.disposition.includes('.html') && offline.html.includes('Preview Passenger') && offline.html.includes('@media print') && !offline.html.includes('<script'), 'Customer downloads a self-contained printable ticket');
+    writeFileSync(join(artifacts, 'ticket-download.html'), offline.html);
     console.log(`${checks} browser UI checks passed. Screenshots: ${artifacts}`);
 } finally {
     if (fixture) execFileSync(php, [fixtureScript, '--cleanup'], { input: JSON.stringify(fixture) });

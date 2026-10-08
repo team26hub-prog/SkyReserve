@@ -9,7 +9,7 @@ $adminLinks = [
 ?>
 <nav class="admin-nav" aria-label="Admin navigation">
     <?php foreach ($adminLinks as $path => [$label, $symbol]):
-        $active = $path === '/admin' ? $currentPath === $path : ($currentPath === $path || str_starts_with($currentPath, $path . '/') || ($path === '/admin/aircraft' && str_starts_with($currentPath, '/admin/seats'))); ?>
+        $active = $path === '/admin' ? $currentPath === $path : ($currentPath === $path || str_starts_with($currentPath, $path . '/') || ($path === '/admin/aircraft' && str_starts_with($currentPath, '/admin/seats')) || ($path === '/admin/payments' && str_starts_with($currentPath, '/admin/tickets/'))); ?>
         <a href="<?= $path ?>"<?= $active ? ' aria-current="page"' : '' ?>><span aria-hidden="true"><?= $symbol ?></span><?= $escape($label) ?></a>
     <?php endforeach; ?>
 </nav>

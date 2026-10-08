@@ -1,0 +1,1 @@
+<h1>Ticket unavailable</h1><p class="notice error" role="alert"><?= $escape($data['message']) ?></p><p><a href="<?= ($data['user']['role'] ?? '') === 'admin' ? '/admin/payments' : '/flights' ?>">Return to <?= ($data['user']['role'] ?? '') === 'admin' ? 'payments' : 'flight search' ?></a></p>

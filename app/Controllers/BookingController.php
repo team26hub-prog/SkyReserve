@@ -7,6 +7,7 @@ use App\Models\Flight;
 use App\Models\Passenger;
 use App\Models\BookingSeat;
 use App\Models\Payment;
+use App\Models\Ticket;
 use DateTimeImmutable;
 use DomainException;
 final class BookingController extends Controller
@@ -66,7 +67,7 @@ final class BookingController extends Controller
         $user = $this->requireRole('customer');
         $booking = (new Booking())->findForCustomer($this->id('id'), (int) $user['id']);
         if (!$booking) { $this->missing(); return; }
-        $this->render('customer/bookings/show', ['title' => 'Booking summary', 'booking' => $booking, 'flight' => (new Flight())->find((int) $booking['flight_id']), 'passengers' => (new Passenger())->forBooking((int) $booking['id']), 'assignments' => (new BookingSeat())->forBooking((int) $booking['id']), 'payments' => (new Payment())->forBooking((int) $booking['id'])]);
+        $this->render('customer/bookings/show', ['title' => 'Booking summary', 'booking' => $booking, 'flight' => (new Flight())->find((int) $booking['flight_id']), 'passengers' => (new Passenger())->forBooking((int) $booking['id']), 'assignments' => (new BookingSeat())->forBooking((int) $booking['id']), 'payments' => (new Payment())->forBooking((int) $booking['id']), 'tickets' => (new Ticket())->forBooking((int) $booking['id'])]);
     }
     private function id(string $key): int
     {

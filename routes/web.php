@@ -15,6 +15,7 @@ use App\Controllers\BookingController;
 use App\Controllers\SeatSelectionController;
 use App\Controllers\PaymentController;
 use App\Controllers\AdminPaymentController;
+use App\Controllers\TicketController;
 
 return [
     'GET' => [
@@ -29,6 +30,10 @@ return [
         '/bookings/seats' => [SeatSelectionController::class, 'index'],
         '/bookings/payment' => [PaymentController::class, 'create'],
         '/payments/receipt' => [PaymentController::class, 'receipt'],
+        '/tickets/show' => [TicketController::class, 'show'],
+        '/tickets/download' => [TicketController::class, 'download'],
+        '/admin/tickets/show' => [TicketController::class, 'adminShow'],
+        '/admin/tickets/download' => [TicketController::class, 'adminDownload'],
         '/admin/login' => [AuthController::class, 'adminLoginForm'],
         '/admin' => [AdminController::class, 'index'],
         '/admin/airports' => [AirportController::class, 'index'],
@@ -55,6 +60,8 @@ return [
         '/bookings' => [BookingController::class, 'store'],
         '/bookings/seats' => [SeatSelectionController::class, 'store'],
         '/bookings/payment' => [PaymentController::class, 'store'],
+        '/bookings/tickets' => [TicketController::class, 'generate'],
+        '/admin/bookings/tickets' => [TicketController::class, 'adminGenerate'],
         '/admin/login' => [AuthController::class, 'adminLogin'],
         '/admin/logout' => [AuthController::class, 'adminLogout'],
         '/admin/airports' => [AirportController::class, 'store'],

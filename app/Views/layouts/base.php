@@ -17,6 +17,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
     <meta name="theme-color" content="#032539">
     <title><?= $escape($data['title'] ?? 'SkyReserve') ?> | SkyReserve</title>
     <link rel="stylesheet" href="/assets/css/app.css">
+    <?php if (str_contains($view, '/tickets/')): ?><link rel="stylesheet" href="/assets/css/ticket.css"><?php endif; ?>
     <script src="/assets/js/app.js" defer></script>
 </head>
 <body class="<?= $pageClass ?><?= $adminLayout ? ' admin-layout' : '' ?>">

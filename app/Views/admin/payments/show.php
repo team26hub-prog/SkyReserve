@@ -41,3 +41,8 @@
     <p class="notice success" role="status">This payment cannot be reviewed in its current payment/booking state.</p>
 <?php endif; ?>
 <p><a href="/admin/payments?status=<?= isset(Payment::REVIEW_STATUSES[$payment['status']]) ? $escape($payment['status']) : 'pending' ?>">Return to payments</a></p>
+<?php
+$ticketPrefix = '/admin'; $ticketBookingId = (int) $payment['booking_id'];
+$ticketEligible = $payment['booking_status'] === 'confirmed' && $payment['status'] === 'verified';
+require BASE_PATH . '/app/Views/tickets/booking-links.php';
+?>
