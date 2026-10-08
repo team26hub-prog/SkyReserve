@@ -6,6 +6,7 @@ $adminLinks = [
     '/admin/flights' => ['Flights', '⇄'],
     '/admin/payments' => ['Payments', '$'],
     '/admin/cancellations' => ['Cancellations', '×'],
+    '/admin/reports' => ['Reports', '▤'],
 ];
 ?>
 <nav class="admin-nav" aria-label="Admin navigation">

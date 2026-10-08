@@ -1,6 +1,6 @@
-# SkyReserve — Modules 1–11
+# SkyReserve — Modules 1–12
 
-Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing; Module 9 adds admin payment verification and rejection; Module 10 adds protected ticket generation, viewing, printing, and HTML download; Module 11 adds My Bookings and customer cancellation requests with admin approval/rejection. Automatic refunds, check-in, and boarding passes are not implemented.
+Plain PHP MVC application for a single airline. Module 1 provides the foundation and database; Module 2 adds authentication; Module 3 adds admin airport, aircraft, and aircraft-seat management; Module 4 adds admin flight management; Module 5 adds customer flight search; Module 6 adds customer bookings and passenger details; Module 7 adds customer seat selection; Module 8 adds manual payment submission and protected receipt viewing; Module 9 adds admin payment verification and rejection; Module 10 adds protected ticket generation, viewing, printing, and HTML download; Module 11 adds My Bookings and customer cancellation requests with admin approval/rejection; Module 12 adds admin dashboard metrics and read-only reports. Automatic refunds, check-in, and boarding passes are not implemented. The implemented scope ends at Module 12.
 
 ## Requirements
 
@@ -21,6 +21,7 @@ app/
   Controllers/TicketController.php      Customer/admin ticket generation, viewing, and download
   Controllers/CancellationController.php Owner-only cancellation request form and submission
   Controllers/AdminCancellationController.php Admin cancellation list, details, and review
+  Controllers/AdminReportController.php Admin report pages and validated read-only filters
   Core/Controller.php                   Rendering, redirects, role/CSRF guards
   Core/Auth.php                         Current-user lookup and sign-in/out
   Core/Session.php                      Session cookies, CSRF, flash messages
@@ -38,6 +39,7 @@ app/
   Models/Payment.php                    Payment persistence, eligibility, and duplicate protection
   Models/Ticket.php                     Transactional issuance and authorized ticket queries
   Models/Cancellation.php               Cancellation history, eligibility, and transactional review
+  Models/AdminReport.php                Dashboard metrics and paginated report queries
   Views/                               Home, auth, customer, admin, errors
   Views/layouts/base.php                Shared minimal layout
 config/                                 Database settings read from environment
@@ -65,6 +67,7 @@ scripts/test_payment_reviews.php        Admin review, audit, authorization, and 
 scripts/test_tickets.php                Ticket issuance, ownership, content, and concurrency tests
 scripts/migrate_module11.php            Repeat-safe cancellation/status/history upgrade
 scripts/test_cancellations.php          My Bookings, cancellation, access, rollback, and race tests
+scripts/test_reports.php                Dashboard/report accuracy, filters, access, and read-only tests
 storage/payment_receipts/               Private receipt files, ignored by Git
 config/payments.php                     Demo/configurable airline payment instructions
 bootstrap.php                           App autoloading and UTC setup
@@ -395,7 +398,7 @@ Tests cover successful assignment, booked/inactive/wrong-aircraft seats, ownersh
 
 Local verification: 36 seat-selection checks and all 312 previous-module checks passed. All 69 PHP files passed lint.
 
-Modules 8–11 are implemented below. Module 12 requires explicit approval.
+Modules 8–12 are implemented below. The implemented scope ends at Module 12.
 
 ## SkyReserve interface refresh
 
@@ -608,4 +611,72 @@ Local verification: **115 Module 11 checks and all 597 Modules 1–10 checks pas
 
 Created: customer/admin cancellation controllers, `Cancellation.php`, My Bookings and cancellation form/history/error/list/detail views, Module 11 SQL/CLI migration, and `scripts/test_cancellations.php`. Updated: booking list/controller/summary/status labels, admin dashboard/navigation and payment status display, customer navigation, ticket status/warning display, shared/print CSS, routes, schema, schema/browser tests and fixture cleanup, and this README.
 
-Module 12 requires explicit approval before implementation.
+## Module 12: Admin dashboard and reports
+
+Sign in at `/admin/login`, then open the dashboard at `/admin`. Its eight metric cards show:
+
+| Metric | Definition |
+| --- | --- |
+| Total customers | Every `users` record with role Customer, including inactive customers; excludes admins |
+| Total flights | Every stored flight, including historical/cancelled flights |
+| Upcoming flights | Scheduled or Delayed flights with departure strictly after the current UTC time |
+| Total bookings | Every booking, across all statuses |
+| Confirmed bookings | Bookings whose current status is exactly Confirmed |
+| Pending payments | Every payment whose current status is Pending |
+| Pending cancellation requests | Every cancellation request whose current status is Pending |
+| Total verified revenue | Exact sum of Verified payment amounts, separately for each currency |
+
+Verified revenue is gross recorded payments. A manual cancellation leaves a verified payment unchanged, so it remains in this total; Refunded, Rejected, and Pending payments are excluded. Different currencies are never added together or converted. SQL DECIMAL sums are displayed without floating-point conversion. Existing management links and pending-payment/cancellation counts remain available alongside a new Reports link. The dashboard uses responsive CSS cards without chart frameworks or new dependencies.
+
+### Reports and routes
+
+All six new routes are GET/HEAD and require an active admin:
+
+| Route | Content and filters |
+| --- | --- |
+| `/admin/reports` | Report directory |
+| `/admin/reports/bookings` | PNR, customer, flight/route, booking/departure timestamps, passenger/active-seat/valid-ticket counts, captured fare, booking status, latest payment status; date, flight, booking-status, latest-payment-status filters |
+| `/admin/reports/flights` | Flight/route, aircraft/registration, departure/arrival, base fare, active/occupied/unassigned seat counts, total bookings, status; date, flight, flight-status filters |
+| `/admin/reports/payments` | Each submission including history, PNR/customer/flight, amount/currency, method/reference, payment date, submission/review timestamps, payment and booking status; date, flight, payment-status, booking-status filters |
+| `/admin/reports/cancellations` | Each request including rejected history, PNR/customer/flight, reason, request/current-booking/previous-booking statuses, reviewer/time/note; date, flight, cancellation-status, booking-status filters |
+| `/admin/reports/passengers` | Selected flight's passengers, identity document, phone, PNR, departure, seat/class and allocation status, passenger/booking status, ticket number/status/link; date, required flight, booking-status filters |
+
+Passenger reports initially ask the admin to select a flight and do not expose an unfiltered passenger list. They retain historical cancelled/released/void and unassigned records with explicit status columns. Filter Booking status to Confirmed when reviewing confirmed travelers. This report is not a check-in or boarding-pass feature.
+
+All report forms provide Start date, End date, Flight, relevant status selectors, Apply filters, and Reset. Query keys are `start_date`, `end_date`, `flight_id`, the relevant `booking_status` / `payment_status` / `flight_status` / `cancellation_status`, and `page`. Blank dates leave that boundary unrestricted. The date range uses UTC and includes both boundary days, including midnight and 23:59:59:
+
+- Bookings: booking creation timestamp.
+- Flights and passenger lists: flight departure timestamp.
+- Payments: submission/creation timestamp; the payment date is displayed separately.
+- Cancellations: request/creation timestamp.
+
+Bookings report payment status means the latest payment submission, including Refunded history; Not submitted matches bookings with no payment rows. The payments report includes all submission statuses, including Refunded. Flight seat counts describe active configured seats and reserved/confirmed allocations; they do not imply that a past/cancelled flight is eligible for customer search.
+
+Tables have captions, column headers, status badges, keyboard-focusable horizontal scrolling, empty states, and full filtered record counts. They display at most 50 rows per page. Previous/Next retain all validated filters; out-of-range positive pages clamp to the final page to avoid unnecessary large offsets. Booked value totals include all matching booking statuses and are not revenue. Payment totals show submitted and verified amounts separately. Monetary totals are per currency and cover every matching record, not only the visible page.
+
+### Security, performance, and database usage
+
+Guests redirect to admin login; signed-in customers receive 403. HEAD requests execute the same authorization checks and return no body. POST to report routes returns 405. Reports introduce no mutation endpoints or CSRF exemptions; existing POST workflows and session protections remain unchanged.
+
+Validation runs in both the controller flow and report model: dates must be real YYYY-MM-DD dates in MySQL's date range, ranges cannot be reversed, flight IDs must be positive existing IDs, statuses must match the selected report, and page numbers must be positive whole numbers no greater than 1,000,000. Array inputs, unsupported query keys, and malformed values return 422 and show an error without silently displaying an unfiltered report. User/database values are escaped, including filter values, names, reasons, notes, and query strings. SQL identifiers and ordering are fixed internal definitions; values use prepared statements, with integer LIMIT/OFFSET bindings.
+
+Dashboard metrics use independent aggregates rather than a multi-table join. Reports use one bounded row query, a matching count query, and monetary totals where needed. One-to-many passenger/seat/ticket data is pre-aggregated before joining bookings; latest payment joins select one row per booking. Passenger seat/ticket joins reuse existing unique keys. There are no per-row database calls or N+1 query loops. Existing indexes and foreign keys are reused. No schema change, table, migration, or business-status behavior is added by Module 12.
+
+### Test Module 12
+
+With MySQL and the development server running, use another local terminal:
+
+```powershell
+php scripts/test_reports.php http://127.0.0.1:8000
+node scripts/test_ui.mjs http://127.0.0.1:8000
+```
+
+The report suite uses unique disposable users, flights, bookings, passengers, allocations, payments, tickets, and cancellation history. It checks all metric deltas, exact multi-currency sums, no aggregate inflation from multiple passengers/payments/requests, report contents, UTC date boundaries and open-ended ranges, every relevant status filter, no-payment matching, 50-row pagination/full-result totals, passenger-by-flight joins, historical/unassigned cases, empty states, invalid/array/injection filters, admin-only GET/HEAD access, and POST rejection. A before/after database snapshot verifies that report browsing changes no fixture business records. Fixtures are removed in cleanup; use the same local development database for the server/test runner. Forced termination can leave fixtures behind.
+
+Local verification: **170 Module 12 checks and all 712 Modules 1–11 regression checks passed**. The UI suite passed **562 Chrome checks across 59 pages** at 375/768/1440px, including dashboard metrics, all report types, labels/headings/contrast/overflow, empty/error states, active navigation, native filter submission/reset, cancellation history, and existing customer/admin workflows. All 112 PHP files and both JavaScript files passed syntax checks. Screenshots are saved to the temporary directory printed by the browser test; automated checks supplement visual review rather than a full accessibility audit.
+
+Regression testing found that Module 8's random large-PNG test fixture could coincidentally contain `<?=` bytes, correctly triggering the existing script-upload guard. The size-acceptance fixture now regenerates such images with bounded retries; intentional unsafe-upload tests remain intact. Application upload validation and payment behavior were not changed.
+
+Created: `AdminReportController.php`, `AdminReport.php`, four shared report views, and `scripts/test_reports.php`. Updated: admin dashboard/controller/navigation, routes, shared CSS, browser tests, the large-image payment test fixture, and this README.
+
+No additional modules are implemented after Module 12.

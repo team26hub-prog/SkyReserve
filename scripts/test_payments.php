@@ -170,14 +170,21 @@ try {
         $assert(str_contains($summary['body'], '/payments/receipt?id=' . $uploaded['id']) && !str_contains($summary['body'], $uploaded['proof_path']), 'summary shows protected receipt link without storage path: ' . $extension);
     }
     // A real 3 MB PNG ensures the server accepts receipts beyond PHP's common 2 MB default.
-    $rows = '';
-    for ($row = 0; $row < 1024; ++$row) $rows .= "\x00" . random_bytes(3072);
     $chunk = static function (string $type, string $data): string {
         return pack('N', strlen($data)) . $type . $data . pack('N', crc32($type . $data));
     };
+    // Random compressed bytes can accidentally contain <?= and trigger the script guard.
+    // This acceptance fixture tests size; intentionally unsafe uploads are tested below.
+    for ($attempt = 0; $attempt < 20; ++$attempt) {
+        $rows = '';
+        for ($row = 0; $row < 1024; ++$row) $rows .= "\x00" . random_bytes(3072);
+        $largeBytes = "\x89PNG\r\n\x1a\n" . $chunk('IHDR', pack('NNCCCCC', 1024, 1024, 8, 2, 0, 0, 0)) . $chunk('IDAT', gzcompress($rows, 1)) . $chunk('IEND', '');
+        if (!preg_match('/<\?(?:php|=)|<script\b/i', $largeBytes)) break;
+    }
+    if (preg_match('/<\?(?:php|=)|<script\b/i', $largeBytes)) throw new RuntimeException('Unable to create a marker-free large image fixture.');
     $mediaPaths[] = $largeValid = $mediaDirectory . '/large-valid.png';
-    file_put_contents($largeValid, "\x89PNG\r\n\x1a\n" . $chunk('IHDR', pack('NNCCCCC', 1024, 1024, 8, 2, 0, 0, 0)) . $chunk('IDAT', gzcompress($rows, 1)) . $chunk('IEND', ''));
-    unset($rows);
+    file_put_contents($largeValid, $largeBytes);
+    unset($rows, $largeBytes);
     $largeBooking = $makeBooking('LARGE'); $largeFields = $fields; $largeFields['receipt'] = new CURLFile($largeValid, 'image/png', 'receipt.png');
     $assert(filesize($largeValid) > 2 * 1024 * 1024 && filesize($largeValid) < PaymentReceipt::MAX_BYTES && $request($customer, 'POST', '/bookings/payment?booking_id=' . $largeBooking, $largeFields)['status'] === 303, 'valid receipt between 2 MB and 5 MB uploads successfully');
     $invalidBooking = $makeBooking('INVALID'); $invalidPath = '/bookings/payment?booking_id=' . $invalidBooking;

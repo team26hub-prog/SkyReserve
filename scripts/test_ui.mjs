@@ -71,7 +71,7 @@ const checkPages = async (pages, group) => {
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
-            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details', 'admin-ticket', 'customer-ticket', 'my-bookings', 'cancellation-form', 'admin-cancellations', 'admin-cancellation-details', 'cancelled-booking', 'void-ticket'].includes(name) && width !== 768) {
+            if (['home', 'search-results', 'admin-flights', 'booking-summary', 'seat-map', 'payment-form', 'payment-summary', 'admin-payments', 'admin-payment-details', 'admin-ticket', 'customer-ticket', 'my-bookings', 'cancellation-form', 'admin-cancellations', 'admin-cancellation-details', 'cancelled-booking', 'void-ticket', 'dashboard', 'report-bookings', 'report-passengers'].includes(name) && width !== 768) {
                 const screenshot = await command('Page.captureScreenshot', { captureBeyondViewport: true });
                 writeFileSync(join(artifacts, `${name}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
             }
@@ -157,6 +157,20 @@ try {
     assert((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length === 1, 'Ticket prints on one A4 page');
     writeFileSync(join(artifacts, 'ticket-print.pdf'), pdf);
     await command('Emulation.setEmulatedMedia', { media: '' });
+    await checkPages([
+        ['reports-index', '/admin/reports'], ['report-bookings', `/admin/reports/bookings?flight_id=${fixture.flightId}`],
+        ['report-flights', `/admin/reports/flights?flight_id=${fixture.flightId}`], ['report-payments', `/admin/reports/payments?flight_id=${fixture.flightId}`],
+        ['report-cancellations-empty', `/admin/reports/cancellations?flight_id=${fixture.flightId}`], ['report-passengers-select', '/admin/reports/passengers'],
+        ['report-passengers', `/admin/reports/passengers?flight_id=${fixture.flightId}`], ['report-bookings-empty', `/admin/reports/bookings?flight_id=${fixture.flightId}&start_date=1900-01-01&end_date=1900-01-01`],
+        ['report-invalid-filter', '/admin/reports/bookings?start_date=2025-01-02&end_date=2025-01-01'],
+    ], 'admin');
+    assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/reports'`), 'Reports highlight admin sidebar');
+    await visit('/admin/reports/bookings');
+    await evaluate(`document.querySelector('#flight_id').value = '${fixture.flightId}'; document.querySelector('#booking_status').value = 'confirmed'; document.querySelector('.report-filters').requestSubmit(); true`);
+    await ready('/admin/reports/bookings'); await pause(100);
+    assert(await evaluate(`new URL(location.href).searchParams.get('flight_id') === '${fixture.flightId}' && !!document.querySelector('[data-report-row="${fixture.bookingId}"]') && document.querySelector('[data-report-total]').textContent.trim() === '1'`), 'Native report filters retain selection and show accurate total');
+    await evaluate(`document.querySelector('.report-filters a').click(); true`); await ready('/admin/reports/bookings'); await pause(100);
+    assert(await evaluate(`location.search === '' && document.querySelector('#flight_id').value === '' && document.querySelector('#booking_status').value === ''`), 'Report Reset clears URL and controls');
     await visit(`/admin/seats?aircraft_id=${fixture.aircraftId}`);
     assert(await evaluate(`document.querySelector('.admin-nav [aria-current="page"]').getAttribute('href') === '/admin/aircraft'`), 'Seat pages highlight Aircraft & seats');
     assert(await evaluate(`(() => { window.confirm = () => false; const form = document.querySelector('form[data-confirm]'); const event = new Event('submit', {bubbles:true, cancelable:true}); form.dispatchEvent(event); return event.defaultPrevented && !form.dataset.submitting; })()`), 'Cancelled delete stays on page without loading state');
@@ -194,6 +208,8 @@ try {
     await visit(`/admin/cancellations/show?id=${retryId}`); await evaluate(`window.confirm = () => true; const form = document.querySelector('.account-form'); form.requestSubmit(form.querySelector('button[type="submit"]')); true`); await ready('/admin/cancellations/show'); await pause(100);
     assert(await evaluate(`document.querySelector('.page-heading .badge').textContent.trim() === 'Approved' && document.body.textContent.includes('Cancelled') && document.body.textContent.includes('Released')`), 'Native approval cancels booking and releases seat');
     await checkPages([['admin-approved-cancellation-details', `/admin/cancellations/show?id=${retryId}`]], 'admin');
+    await checkPages([['report-cancellation-history', `/admin/reports/cancellations?flight_id=${fixture.flightId}`]], 'admin');
+    assert(await evaluate(`document.querySelector('[data-report-total]').textContent.trim() === '2' && document.querySelector('.report-table').textContent.includes('Approved') && document.querySelector('.report-table').textContent.includes('Rejected')`), 'Cancellation report reflects reviewed history without duplicate joins');
     await visit('/admin'); await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`); await ready('/admin/login'); await signIn('customer');
     await checkPages([['cancelled-booking', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-cancelled', '/bookings?status=cancelled'], ['void-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
     assert(await evaluate(`document.querySelector('.ticket-invalid').textContent.includes('VOID TICKET')`), 'Cancelled ticket shows explicit invalid-for-travel warning');

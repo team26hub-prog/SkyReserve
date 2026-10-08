@@ -18,6 +18,7 @@ use App\Controllers\AdminPaymentController;
 use App\Controllers\TicketController;
 use App\Controllers\CancellationController;
 use App\Controllers\AdminCancellationController;
+use App\Controllers\AdminReportController;
 
 return [
     'GET' => [
@@ -42,6 +43,12 @@ return [
         '/admin/tickets/download' => [TicketController::class, 'adminDownload'],
         '/admin/login' => [AuthController::class, 'adminLoginForm'],
         '/admin' => [AdminController::class, 'index'],
+        '/admin/reports' => [AdminReportController::class, 'index'],
+        '/admin/reports/bookings' => [AdminReportController::class, 'bookings'],
+        '/admin/reports/flights' => [AdminReportController::class, 'flights'],
+        '/admin/reports/payments' => [AdminReportController::class, 'payments'],
+        '/admin/reports/cancellations' => [AdminReportController::class, 'cancellations'],
+        '/admin/reports/passengers' => [AdminReportController::class, 'passengers'],
         '/admin/airports' => [AirportController::class, 'index'],
         '/admin/airports/create' => [AirportController::class, 'create'],
         '/admin/airports/edit' => [AirportController::class, 'edit'],
