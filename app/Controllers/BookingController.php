@@ -54,21 +54,24 @@ final class BookingController extends Controller
         $flight = (new Flight())->findAvailable($flightId);
         if (!$flight) { $this->unavailable(); return; }
         $values = [];
-        foreach (['full_name', 'document_number', 'date_of_birth', 'gender', 'phone'] as $field) { $values[$field] = $this->input($field); }
+        foreach (['full_name', 'cnic', 'passport_number', 'date_of_birth', 'gender', 'phone'] as $field) { $values[$field] = $this->input($field); }
         $errors = [];
         if (!mb_check_encoding($values['full_name'], 'UTF-8') || mb_strlen($values['full_name']) < 2 || mb_strlen($values['full_name']) > 160 || !preg_match("/\A[\p{L}\p{M} .'-]+\z/u", $values['full_name']) || !preg_match('/\p{L}/u', $values['full_name'])) {
             $errors[] = 'Enter a full name of 2–160 characters using letters, spaces, apostrophes, periods, or hyphens.';
         }
-        $document = strtoupper($values['document_number']);
-        if (preg_match('/\A[0-9]{5}-[0-9]{7}-[0-9]\z/', $document)) { $document = str_replace('-', '', $document); }
-        if (!preg_match('/\A(?:[0-9]{13}|(?=[A-Z0-9]{6,20}\z)(?=[A-Z0-9]*[A-Z])[A-Z0-9]+)\z/', $document)) { $errors[] = 'Enter a 13-digit CNIC or a 6–20 character alphanumeric passport number containing a letter.'; }
+        $cnic = $values['cnic'];
+        if (!preg_match('/\A(?:[0-9]{13}|[0-9]{5}-[0-9]{7}-[0-9])\z/', $cnic)) { $errors[] = 'Enter a complete 13-digit CNIC, for example 34202-1234567-1.'; }
+        $values['passport_number'] = strtoupper($values['passport_number']);
+        if ((isset($_POST['passport_number']) && !is_string($_POST['passport_number'])) || ($values['passport_number'] !== '' && !preg_match('/\A[A-Z0-9]{6,20}\z/', $values['passport_number']))) { $errors[] = 'Enter a passport number of 6–20 letters and digits, or leave it blank.'; }
         $dob = preg_match('/\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/', $values['date_of_birth']) ? DateTimeImmutable::createFromFormat('!Y-m-d', $values['date_of_birth']) : false;
         if (!$dob || $dob->format('Y-m-d') !== $values['date_of_birth'] || $dob > new DateTimeImmutable('today') || (int) $dob->format('Y') < 1900) { $errors[] = 'Enter a valid date of birth from 1900 through today (UTC).'; }
         if (!in_array($values['gender'], ['male', 'female', 'other'], true)) { $errors[] = 'Select a gender.'; }
         $digits = preg_replace('/[^0-9]/', '', $values['phone']);
         if (strlen($values['phone']) > 30 || !preg_match('/\A\+?[0-9 ()-]+\z/', $values['phone']) || strlen($digits) < 7 || strlen($digits) > 15) { $errors[] = 'Enter a valid phone number with 7–15 digits.'; }
         if ($errors) { http_response_code(422); $this->form($flight, $token, $values, $errors); return; }
-        $values['document_number'] = $document;
+        $values['cnic'] = str_replace('-', '', $cnic);
+        // Keep the existing identity mapping used by tickets and reports.
+        $values['document_number'] = $values['cnic'];
         try { $id = $model->create((int) $user['id'], $flightId, $key, $values); }
         catch (DomainException) { $this->unavailable(); return; }
         Session::flash('Booking created. Choose your seat and submit payment to continue.');

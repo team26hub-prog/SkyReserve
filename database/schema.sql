@@ -117,6 +117,8 @@ CREATE TABLE passengers (
     phone VARCHAR(30) NULL,
     date_of_birth DATE NULL,
     document_number VARCHAR(50) NULL,
+    cnic CHAR(13) NULL,
+    passport_number VARCHAR(20) NULL,
     status ENUM('active', 'cancelled') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -30,7 +30,7 @@
     <div class="section-heading"><h2 id="benefits-title">Why choose SkyReserve</h2></div>
     <div class="benefit-grid">
         <?php foreach ([['Easy flight search', 'Compare routes, departure times, and fares in one place.', 'm4 17 5-5 4 3 7-10M15 5h5v5'], ['Simple seat selection', 'See available seats and choose a spot on your aircraft.', 'M6 3v10h12V3M4 13v5h16v-5M6 18v3M18 18v3'], ['Manual payment verification', 'Submit your payment details for review by the airline team.', 'M5 3h14v18H5zM8 8h8M8 12h4m0 4 2 2 4-4'], ['Easy booking and ticket management', 'Keep your booking details and printable tickets together.', 'M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4zM15 6v12']] as [$title, $text, $path]): ?>
-            <article class="card benefit-card"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="<?= $escape($path) ?>"/></svg></span><h3><?= $escape($title) ?></h3><p><?= $escape($text) ?></p></article>
+            <article class="card benefit-card"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="<?= $escape($path) ?>"/></svg></span><div class="benefit-content"><h3><?= $escape($title) ?></h3><p><?= $escape($text) ?></p></div></article>
         <?php endforeach; ?>
     </div>
 </section>

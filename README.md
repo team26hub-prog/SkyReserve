@@ -131,9 +131,12 @@ php scripts/migrate_module4.php
 php scripts/migrate_module6.php
 php scripts/migrate_module8.php
 php scripts/migrate_module11.php
+php scripts/migrate_passenger_identity.php
 ```
 
 These repeat-safe scripts check existing structure before applying changes. Module 11 refuses legacy pending cancellation records whose previous booking status is unknown; resolve those manually first. MySQL DDL is not transactional. Fresh installations using the current schema do not need these upgrades.
+
+The passenger identity upgrade adds separate CNIC and passport fields without changing existing documents. New passenger forms require a 13-digit CNIC, automatically formatted as `34202-1234567-1`; passport is optional (6–20 alphanumeric characters, trimmed and uppercased). Enter moves through the passenger fields to Create booking, and completing the CNIC focuses Passport. Standard Tab navigation remains available. Booking summaries display both fields separately; existing bookings retain their original document details.
 
 ## Routes and workflows
 

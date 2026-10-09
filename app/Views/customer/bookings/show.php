@@ -15,7 +15,15 @@
         <?php $selected = null; foreach ($data['assignments'] as $assignment) { if ((int) $assignment['passenger_id'] === (int) $passenger['id'] && in_array($assignment['status'], ['reserved', 'confirmed'], true)) { $selected = $assignment; break; } } ?>
         <dt>Selected seat</dt><dd><?= $selected ? $escape($selected['seat_number'] . ' — ' . ucfirst($selected['cabin_class'])) : 'Not selected' ?></dd>
         <dt>Full name</dt><dd><?= $escape($passenger['full_name'] ?? trim($passenger['first_name'] . ' ' . $passenger['last_name'])) ?></dd>
-        <dt>CNIC / Passport</dt><dd><?= $escape($passenger['document_number'] ?? '') ?></dd>
+        <?php
+        // Legacy bookings may have only the original combined document field.
+        $legacyDocument = $passenger['document_number'] ?? '';
+        $cnic = $passenger['cnic'] ?? (preg_match('/\A(?:[0-9]{13}|[0-9]{5}-[0-9]{7}-[0-9])\z/', $legacyDocument) ? str_replace('-', '', $legacyDocument) : '');
+        $passport = $passenger['passport_number'] ?? ($cnic === '' ? $legacyDocument : '');
+        $formattedCnic = preg_match('/\A[0-9]{13}\z/', $cnic) ? substr($cnic, 0, 5) . '-' . substr($cnic, 5, 7) . '-' . substr($cnic, 12) : $cnic;
+        ?>
+        <dt>CNIC</dt><dd><?= $escape($formattedCnic ?: 'Not provided') ?></dd>
+        <dt>Passport number</dt><dd><?= $escape($passport ?: 'Not provided') ?></dd>
         <dt>Date of birth</dt><dd><?= $escape($passenger['date_of_birth'] ?? '') ?></dd>
         <dt>Gender</dt><dd><?= $escape(ucfirst($passenger['gender'] ?? '')) ?></dd>
         <dt>Phone</dt><dd><?= $escape($passenger['phone'] ?? '') ?></dd>

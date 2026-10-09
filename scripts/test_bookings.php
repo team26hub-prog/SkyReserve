@@ -117,14 +117,19 @@ try {
     }
     $form = $request($customer, 'GET', '/bookings/create?flight_id=' . $id);
     $assert($form['status'] === 200, 'customer can open passenger form');
-    $fields = ['_token' => $token($form), 'booking_token' => $bookingToken($form), 'full_name' => 'Ali Khan', 'document_number' => '35202-1234567-1', 'date_of_birth' => '2000-02-29', 'gender' => 'male', 'phone' => '+92 300 1234567', 'user_id' => $userIds[$otherEmail], 'total_amount' => '0.01', 'status' => 'confirmed'];
+    $assert(str_contains($form['body'], 'name="cnic"') && str_contains($form['body'], 'name="passport_number"') && !str_contains($form['body'], 'name="document_number"'), 'form exposes separate CNIC and optional passport fields');
+    $fields = ['_token' => $token($form), 'booking_token' => $bookingToken($form), 'full_name' => 'Ali Khan', 'cnic' => '35202-1234567-1', 'passport_number' => '', 'date_of_birth' => '2000-02-29', 'gender' => 'male', 'phone' => '+92 300 1234567', 'user_id' => $userIds[$otherEmail], 'total_amount' => '0.01', 'status' => 'confirmed'];
     $withoutCsrf = $fields; unset($withoutCsrf['_token']);
     $assert($request($customer, 'POST', $path, $withoutCsrf)['status'] === 403, 'booking requires CSRF');
     $assert($request($customer, 'POST', $path, ['_token' => $fields['_token'], 'booking_token' => $fields['booking_token']])['status'] === 422, 'required passenger fields validated');
-    foreach ([['full_name', '<script>'], ['full_name', ['Ali']], ['document_number', 'bad'], ['date_of_birth', '2000-02-30'], ['date_of_birth', '2100-01-01'], ['gender', 'invalid'], ['phone', '123']] as [$key, $value]) {
+    foreach ([['full_name', '<script>'], ['full_name', ['Ali']], ['cnic', 'bad'], ['cnic', '352021234567'], ['cnic', '35202123456711'], ['cnic', '35202-123456-71'], ['cnic', '35202a12345671'], ['cnic', ['3520212345671']], ['passport_number', 'AB12@456'], ['passport_number', 'AB 123456'], ['passport_number', 'AB123'], ['passport_number', str_repeat('A', 21)], ['passport_number', ['AB123456']], ['date_of_birth', '2000-02-30'], ['date_of_birth', '2100-01-01'], ['gender', 'invalid'], ['phone', '123']] as [$key, $value]) {
         $invalid = $fields; $invalid[$key] = $value;
         $assert($request($customer, 'POST', $path, $invalid)['status'] === 422, 'invalid passenger input rejected: ' . $key);
     }
+    $passportOnly = $fields; $passportOnly['cnic'] = ''; $passportOnly['passport_number'] = 'AB123456';
+    $assert($request($customer, 'POST', $path, $passportOnly)['status'] === 422, 'passport cannot replace the required CNIC');
+    $q = $db->prepare('SELECT COUNT(*) FROM bookings WHERE user_id = ?'); $q->execute([$userIds[$customerEmail]]);
+    $assert((int) $q->fetchColumn() === 0, 'invalid passenger details create no booking');
     $forged = $fields; $forged['booking_token'] = str_repeat('a', 64);
     $assert($request($customer, 'POST', $path, $forged)['status'] === 409, 'unknown form token rejected');
     $response = $request($customer, 'POST', $path, $fields);
@@ -134,16 +139,23 @@ try {
     $assert($booking['user_id'] == $userIds[$customerEmail] && $booking['flight_id'] == $id && $booking['status'] === 'pending' && $booking['total_amount'] === '1234.56', 'customer, flight, fare, and status cannot be forged');
     $q = $db->prepare('SELECT * FROM passengers WHERE booking_id = ?'); $q->execute([$bookingId]); $passengers = $q->fetchAll();
     $assert(count($passengers) === 1 && $passengers[0]['full_name'] === 'Ali Khan' && $passengers[0]['document_number'] === '3520212345671' && $passengers[0]['gender'] === 'male' && $passengers[0]['phone'] === $fields['phone'], 'passenger linked with all details and normalized CNIC');
+    $assert($passengers[0]['cnic'] === '3520212345671' && $passengers[0]['passport_number'] === null, 'required CNIC is stored separately and blank optional passport is NULL');
     $summary = $request($customer, 'GET', '/bookings/show?id=' . $bookingId);
     $assert($summary['status'] === 200 && str_contains($summary['body'], $booking['booking_reference']) && str_contains($summary['body'], 'Pending Payment') && str_contains($summary['body'], 'Ali Khan') && str_contains($summary['body'], '1234.56'), 'summary displays PNR, passenger, fare, and status');
+    $assert(str_contains($summary['body'], '<dt>CNIC</dt><dd>35202-1234567-1</dd>') && str_contains($summary['body'], '<dt>Passport number</dt><dd>Not provided</dd>'), 'summary displays CNIC and absent passport separately');
     $assert($request($other, 'GET', '/bookings/show?id=' . $bookingId)['status'] === 404, 'another customer cannot read passenger details');
     $replay = $request($customer, 'POST', $path, $fields);
     $assert($replay['status'] === 303 && $replay['headers']['location'] === $response['headers']['location'], 'duplicate submission returns the original booking');
     $q = $db->prepare('SELECT COUNT(*) FROM bookings WHERE user_id = ?'); $q->execute([$userIds[$customerEmail]]);
     $assert((int) $q->fetchColumn() === 1, 'duplicate request creates no extra booking');
     $form2 = $request($customer, 'GET', '/bookings/create?flight_id=' . $id);
-    $second = $fields; $second['booking_token'] = $bookingToken($form2); $second['document_number'] = 'AB1234567'; $second['full_name'] = 'Sara Ahmed'; $second['gender'] = 'female';
-    $assert($request($customer, 'POST', $path, $second)['status'] === 303, 'new form accepts passport and creates a separate booking');
+    $second = $fields; $second['booking_token'] = $bookingToken($form2); $second['cnic'] = '3420212345671'; $second['passport_number'] = '  ab1234567  '; $second['full_name'] = 'Sara Ahmed'; $second['gender'] = 'female';
+    $secondResponse = $request($customer, 'POST', $path, $second);
+    $assert($secondResponse['status'] === 303, 'new form accepts raw CNIC plus optional passport and creates a separate booking');
+    $q = $db->prepare('SELECT p.* FROM passengers p JOIN bookings b ON b.id = p.booking_id WHERE b.user_id = ? AND p.full_name = ?'); $q->execute([$userIds[$customerEmail], 'Sara Ahmed']); $secondPassenger = $q->fetch();
+    $assert($secondPassenger['cnic'] === '3420212345671' && $secondPassenger['passport_number'] === 'AB1234567' && $secondPassenger['document_number'] === '3420212345671', 'passport is trimmed and uppercased independently of CNIC and legacy mapping');
+    $secondSummary = $request($customer, 'GET', $secondResponse['headers']['location']);
+    $assert(str_contains($secondSummary['body'], '<dt>CNIC</dt><dd>34202-1234567-1</dd>') && str_contains($secondSummary['body'], '<dt>Passport number</dt><dd>AB1234567</dd>'), 'summary shows both identity numbers without combining them');
     $q = $db->prepare('SELECT COUNT(DISTINCT booking_reference) FROM bookings WHERE user_id = ?'); $q->execute([$userIds[$customerEmail]]);
     $assert((int) $q->fetchColumn() === 2, 'PNRs are unique');
     foreach (['cancelled', 'completed', 'delayed', 'past'] as $status) {

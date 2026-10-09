@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkPassengerForm } from './test_passenger_form.mjs';
 
 const base = new URL(process.argv[2] || 'http://127.0.0.1:8000');
 if (base.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(base.hostname) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw new Error('Use a local server URL.');
@@ -151,6 +152,14 @@ try {
     });
     await command('Page.enable');
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
+    if (process.argv.includes('--passenger-only')) {
+        await signIn('customer');
+        await checkPages([['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`]], 'customer');
+        await visit(`/bookings/show?id=${fixture.bookingId}`);
+        assert(await evaluate(`document.body.textContent.includes('Passport number') && document.body.textContent.includes('AB123456') && !document.body.textContent.includes('CNIC / Passport')`), 'Legacy passport remains visible separately in booking summary');
+        await checkPassengerForm({ command, evaluate, assert, visit, respondToConfirmation, flightId: fixture.flightId });
+        console.log(`${checks} passenger browser checks passed. Screenshots: ${artifacts}`);
+    } else {
     const search = `/flights?from_airport_id=${fixture.from}&to_airport_id=${fixture.to}&travel_date=${fixture.date}`;
     await checkPages([['home', '/'], ['search', '/flights'], ['search-results', search], ['login', '/login'], ['register', '/register'], ['flight-details', `/flights/show?id=${fixture.flightId}`]], 'guest');
     await command('Page.navigate', { url: new URL('/admin/login', base).href });
@@ -241,6 +250,7 @@ try {
     await visit('/');
     assert(await evaluate(`!!document.querySelector('.home-final-cta a[href="/bookings"]')`), 'Customer homepage links to My Bookings');
     await checkPages([['profile', '/profile'], ['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['seat-map', `/bookings/seats?booking_id=${fixture.bookingId}`], ['payment-form', `/bookings/payment?booking_id=${fixture.bookingId}`]], 'customer');
+    await checkPassengerForm({ command, evaluate, assert, visit, respondToConfirmation, flightId: fixture.flightId });
     await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
     await evaluate(`document.querySelector('#passenger_id').selectedIndex = 1; document.querySelector('input[name="seat_id"][value="${fixture.seatId}"]').checked = true; document.querySelector('.account-form').requestSubmit(); true`);
     await respondToConfirmation();
@@ -435,6 +445,7 @@ try {
     await checkPages([['cancelled-booking', `/bookings/show?id=${fixture.bookingId}`], ['my-bookings-cancelled', '/bookings?status=cancelled'], ['void-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
     assert(await evaluate(`document.querySelector('.ticket-invalid').textContent.includes('VOID TICKET')`), 'Cancelled ticket shows explicit invalid-for-travel warning');
     console.log(`${checks} browser UI checks passed. Screenshots: ${artifacts}`);
+    }
 } finally {
     if (fixture) execFileSync(php, [fixtureScript, '--cleanup'], { input: JSON.stringify(fixture) });
     if (ws) ws.close();
