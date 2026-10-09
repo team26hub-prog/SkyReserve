@@ -98,7 +98,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
         </nav>
     </footer>
     <?php endif; ?>
-    <a class="back-to-top" href="#page-top" aria-label="Back to top" title="Back to top"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></a>
+    <a class="back-to-top" href="#page-top" aria-label="Back to top" title="Back to top" hidden><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></a>
     <?php require BASE_PATH . '/app/Views/layouts/mobile-navigation.php'; ?>
     <?php require BASE_PATH . '/app/Views/layouts/confirmation.php'; ?>
     <div class="toast-region" role="region" aria-label="Notifications"></div>

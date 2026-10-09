@@ -1,6 +1,13 @@
 'use strict';
 
 document.documentElement.classList.add('js');
+const backToTop = document.querySelector('.back-to-top');
+if (backToTop) {
+    const updateBackToTop = () => { backToTop.hidden = window.scrollY <= 200; };
+    window.addEventListener('scroll', updateBackToTop, { passive: true });
+    window.addEventListener('pageshow', updateBackToTop);
+    updateBackToTop();
+}
 const header = document.querySelector('.site-header');
 const showToast = (message, kind = 'info', title = '') => {
     const region = document.querySelector('.toast-region');

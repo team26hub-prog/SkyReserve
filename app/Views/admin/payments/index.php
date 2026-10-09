@@ -19,7 +19,7 @@
                 <td class="fare"><?= $escape($payment['currency'] . ' ' . $payment['amount']) ?></td>
                 <td><?= $escape($payment['payment_date'] ?? 'Not provided') ?></td>
                 <td><span class="badge" data-status="<?= $escape($payment['status']) ?>"><?= $escape(ucfirst($payment['status'])) ?></span></td>
-                <td><a href="/admin/payments/show?id=<?= (int) $payment['id'] ?>" aria-label="View payment for <?= $escape($payment['booking_reference']) ?>">View payment</a></td>
+                <td><a class="button button-secondary" href="/admin/payments/show?id=<?= (int) $payment['id'] ?>" aria-label="View payment for <?= $escape($payment['booking_reference']) ?>">View payment</a></td>
             </tr><?php endforeach; ?></tbody>
         </table>
     </div>

@@ -29,8 +29,16 @@ $metricCards = [
         </div>
     </article>
 </section>
-<p class="muted">Counts include all stored records. Upcoming flights are Scheduled/Delayed with a future UTC departure. Verified revenue is gross verified payment amounts, grouped by currency; manual cancellations do not automatically reduce it.</p>
-<p><a class="button" href="/admin/reports">Open reports</a></p>
+<section class="dashboard-review-summary" aria-labelledby="review-summary-title">
+    <div>
+        <h2 id="review-summary-title"><?= $data['pendingPayments'] || $data['pendingCancellations'] ? 'Awaiting your review' : 'All caught up' ?></h2>
+        <p class="muted"><?= (int) $data['pendingPayments'] ?> pending payment(s) and <?= (int) $data['pendingCancellations'] ?> cancellation request(s) awaiting review.</p>
+    </div>
+    <div class="actions">
+        <a class="button button-secondary" href="/admin/payments?status=pending">Review payments</a>
+        <?php if ($data['pendingCancellations']): ?><a class="button button-secondary" href="/admin/cancellations">Review cancellations</a><?php endif; ?>
+    </div>
+</section>
 <div class="management-links management-links-inline">
     <?php
     $managementCards = [

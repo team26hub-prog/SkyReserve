@@ -17,7 +17,7 @@ if (str_starts_with($view, 'admin/')) {
     $backUrl = $data['back']; $backLabel = 'Back to matching flights';
 } elseif ($view === 'customer/bookings/form') {
     $backUrl = '/flights/show?id=' . (int) $data['flight']['id']; $backLabel = 'Back to flight details';
-} elseif (str_starts_with($view, 'customer/bookings/') || str_starts_with($view, 'customer/payments/') || str_starts_with($view, 'customer/cancellations/')) {
+} elseif ($view !== 'customer/bookings/index' && (str_starts_with($view, 'customer/bookings/') || str_starts_with($view, 'customer/payments/') || str_starts_with($view, 'customer/cancellations/'))) {
     $backUrl = '/bookings'; $backLabel = 'Back to My Bookings';
     if (!in_array($view, ['customer/bookings/index','customer/bookings/show'], true) && isset($data['booking']['id'])) {
         $backUrl = '/bookings/show?id=' . (int) $data['booking']['id']; $backLabel = 'Back to booking summary';
