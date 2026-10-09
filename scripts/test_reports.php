@@ -24,6 +24,8 @@ $request = static function (CurlHandle $handle, string $method, string $path, ar
 $token = static function (array $response): string { if (!preg_match('/name="_token" value="([a-f0-9]{64})"/',$response['body'],$match)) throw new RuntimeException('CSRF token missing.'); return $match[1]; };
 try {
     $db = Database::connection(); $model = new AdminReport(); $before = $model->dashboard();
+    $analyticsDate = new DateTimeImmutable('2025-02-04', new DateTimeZone('UTC'));
+    $analyticsBefore = $model->analytics(['period' => '7'], $analyticsDate);
     foreach (['customer','other','admin'] as $role) { $emails[$role] = "report-$role-$suffix@example.invalid"; $db->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')->execute(['<b>Report ' . $role . '</b>',$emails[$role],password_hash($password,PASSWORD_DEFAULT),$role === 'admin' ? 'admin' : 'customer']); $users[$role] = (int) $db->lastInsertId(); }
     $db->prepare("UPDATE users SET status = 'inactive' WHERE id = ?")->execute([$users['other']]);
     foreach (['Origin','Destination'] as $name) {
@@ -62,6 +64,57 @@ try {
     foreach (['customers' => 2,'flights' => 5,'upcoming_flights' => 2,'bookings' => 57,'confirmed_bookings' => 1,'pending_payments' => 1,'pending_cancellations' => 1] as $key => $delta) $assert((int) $metrics[$key] === (int) $before[$key]+$delta,'dashboard metric delta: ' . $key);
     $expectedRevenue = $db->query("SELECT currency,SUM(amount) AS amount FROM payments WHERE status = 'verified' GROUP BY currency ORDER BY currency")->fetchAll();
     $assert($metrics['revenue'] === $expectedRevenue,'dashboard verified revenue uses exact decimal sums per currency including cancelled verified payments');
+    $analytics = $model->analytics(['period' => '7'], $analyticsDate);
+    $statusCounts = array_column($analytics['statuses'], 'count', 'status');
+    $beforeCounts = array_column($analyticsBefore['statuses'], 'count', 'status');
+    foreach (['pending' => 53, 'confirmed' => 1, 'payment_submitted' => 1, 'cancellation_requested' => 1, 'cancelled' => 1, 'expired' => 0] as $status => $delta) {
+        $assert($statusCounts[$status] === $beforeCounts[$status] + $delta, 'analytics counts existing booking status accurately: ' . $status);
+    }
+    $assert(count($analytics['statuses']) === count(App\Models\Booking::STATUSES), 'analytics includes every booking status, including zero counts');
+    $beforeBuckets = array_column($analyticsBefore['bookings'], 'count', 'bucket');
+    $actualBuckets = array_column($analytics['bookings'], 'count', 'bucket');
+    foreach (['2025-02-01' => 3, '2025-02-02' => 1, '2025-02-03' => 1, '2025-02-04' => 52, '2025-01-29' => 0] as $bucket => $delta) {
+        $assert($actualBuckets[$bucket] === $beforeBuckets[$bucket] + $delta, 'daily booking trend counts and zero fill: ' . $bucket);
+    }
+    $assert(count($analytics['bookings']) === 7 && $analytics['start'] === '2025-01-29' && $analytics['end'] === '2025-02-04', '7-day window includes today and UTC midnight boundaries');
+    $cents = static fn (string $amount): int => (int) str_replace('.', '', $amount);
+    $revenueMap = static function (array $result) use ($cents): array {
+        $map = []; foreach ($result['revenue'] as $series) foreach ($series['points'] as $point) $map[$series['currency']][$point['bucket']] = $cents($point['amount']);
+        return $map;
+    };
+    $oldRevenue = $revenueMap($analyticsBefore); $newRevenue = $revenueMap($analytics);
+    foreach ([['PKR', '2025-02-01', 30040], ['PKR', '2025-02-02', 10025], ['USD', '2025-02-01', 10010], ['PKR', '2025-02-03', 0]] as [$currency, $bucket, $delta]) {
+        $assert($newRevenue[$currency][$bucket] === ($oldRevenue[$currency][$bucket] ?? 0) + $delta, 'revenue is verified only and currencies remain separated: ' . $currency . '/' . $bucket);
+    }
+    $assert(count($analytics['revenue'][0]['points']) === 7, 'revenue series zero-fill each date independently');
+    $monthly = $model->analytics(['period' => '12m'], $analyticsDate);
+    $assert(count($monthly['bookings']) === 12 && $monthly['monthly'] && $monthly['start'] === '2024-03-01' && $monthly['bookings'][11]['bucket'] === '2025-02', '12-month view handles year transitions and current month');
+    $query = $db->prepare('SELECT COUNT(*) FROM bookings WHERE created_at >= ? AND created_at < ?'); $query->execute(['2025-02-01', '2025-02-05']);
+    $assert($monthly['bookings'][11]['count'] === (int) $query->fetchColumn(), 'monthly booking count includes today and excludes future timestamps');
+    $query = $db->prepare("SELECT currency,SUM(amount) AS amount FROM payments WHERE status = 'verified' AND created_at >= ? AND created_at < ? GROUP BY currency"); $query->execute(['2025-02-01', '2025-02-05']);
+    $monthlyRevenue = array_column($monthly['revenue'], 'points', 'currency');
+    foreach ($query->fetchAll() as $row) $assert($monthlyRevenue[$row['currency']][11]['amount'] === $row['amount'], 'monthly verified revenue uses exact decimal aggregation: ' . $row['currency']);
+    $defaultAnalytics = $model->analytics([], $analyticsDate);
+    $assert($defaultAnalytics['period'] === '30' && count($defaultAnalytics['bookings']) === 30, 'analytics defaults to last 30 days');
+    $renderAnalytics = static function (array $chartData): string {
+        $data = ['analytics' => $chartData, 'analyticsError' => null];
+        $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        ob_start(); require BASE_PATH . '/app/Views/admin/reports/analytics.php'; return ob_get_clean();
+    };
+    $unsafe = $analytics; $unsafe['revenue'][0]['currency'] = 'USD</script><script>alert(1)</script>';
+    $unsafe['routes'][0]['origin'] = '<img onerror="alert(1)">';
+    $escapedCharts = $renderAnalytics($unsafe);
+    $assert(!str_contains($escapedCharts, '<script>alert(1)') && !str_contains($escapedCharts, '<img onerror=') && str_contains($escapedCharts, 'USD&lt;/script&gt;') && str_contains($escapedCharts, '\\u003C'), 'chart headings, tables and embedded JSON escape hostile stored values');
+    $emptyCharts = $analytics; $emptyCharts['revenue'] = $emptyCharts['routes'] = [];
+    foreach (['statuses', 'bookings'] as $key) foreach ($emptyCharts[$key] as &$row) $row['count'] = 0;
+    unset($row);
+    $assert(substr_count($renderAnalytics($emptyCharts), 'class="chart-empty"') === 4, 'every chart renders a professional empty state without data');
+    $expectedRoutes = $db->query('SELECT o.iata_code AS origin,d.iata_code AS destination,COUNT(*) AS count FROM bookings b JOIN flights f ON f.id=b.flight_id JOIN airports o ON o.id=f.origin_airport_id JOIN airports d ON d.id=f.destination_airport_id GROUP BY o.id,d.id,o.iata_code,d.iata_code ORDER BY count DESC,o.iata_code,d.iata_code LIMIT 5')->fetchAll();
+    $assert($analytics['routes'] === $expectedRoutes && count($analytics['routes']) <= 5, 'top routes aggregate bookings without passenger/payment fanout and use deterministic top-five ordering');
+    foreach ([['period' => 'bad'], ['period' => ['7']], ['period' => '7 OR 1=1'], ['unexpected' => '1'], ['period' => '']] as $invalid) {
+        try { $model->analytics($invalid); throw new RuntimeException('Invalid analytics period accepted.'); }
+        catch (DomainException) { $assert(true, 'analytics rejects malformed filters'); }
+    }
     $guest = $client(); $customer = $client(); $admin = $client();
     foreach ([[$customer,'customer','/login'],[$admin,'admin','/login']] as [$handle,$role,$login]) { $form = $request($handle,'GET',$login); $assert($request($handle,'POST',$login,['_token' => $token($form),'email' => $emails[$role],'password' => $password])['status'] === 303,'fixture ' . $role . ' login'); }
     $dashboard = $request($admin,'GET','/admin');
@@ -75,6 +128,15 @@ try {
         return $sets;
     };
     $storedBefore = $snapshot();
+    foreach (['7', '30', '12m'] as $period) {
+        $response = $request($admin, 'GET', '/admin/reports?period=' . $period);
+        $assert($response['status'] === 200 && str_contains($response['body'], 'id="analytics-data"'), 'admin analytics period renders: ' . $period);
+        foreach (AdminReport::REPORTS as $type => $report) $assert(str_contains($response['body'], 'href="/admin/reports/' . $type . '"'), 'existing report card preserved with analytics: ' . $type);
+    }
+    foreach (['period=invalid', 'period[]=7', 'period=7%20OR%201%3D1', 'unknown=1', 'period='] as $invalid) {
+        $response = $request($admin, 'GET', '/admin/reports?' . $invalid);
+        $assert($response['status'] === 422 && !str_contains($response['body'], 'id="analytics-data"'), 'invalid analytics filters expose no chart data: ' . $invalid);
+    }
     foreach (['',...array_map(static fn (string $type): string => '/' . $type,array_keys(AdminReport::REPORTS))] as $suffixPath) {
         $path = '/admin/reports' . $suffixPath;
         $assert($request($guest,'GET',$path)['status'] === 303,'guest report blocked: ' . $path);

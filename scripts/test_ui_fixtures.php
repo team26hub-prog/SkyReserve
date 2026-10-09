@@ -6,6 +6,17 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require dirname(__DIR__) . '/bootstrap.php';
 use App\Core\Database;
 
+if (($argv[1] ?? '') === '--analytics-empty') {
+    $analytics = ['period' => '30', 'monthly' => false, 'start' => gmdate('Y-m-d', time() - 29 * 86400), 'end' => gmdate('Y-m-d'), 'statuses' => [], 'bookings' => [], 'revenue' => [], 'routes' => []];
+    foreach (App\Models\Booking::STATUSES as $status => $label) $analytics['statuses'][] = ['status' => $status, 'label' => $label, 'count' => 0];
+    $data = ['title' => 'Reports', 'user' => ['role' => 'admin', 'name' => 'Preview Admin'], 'flash' => null, 'wide' => true, 'analytics' => $analytics, 'analyticsError' => null];
+    $view = 'admin/reports/index'; $viewFile = BASE_PATH . '/app/Views/admin/reports/index.php';
+    $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $csrf = str_repeat('0', 64);
+    require BASE_PATH . '/app/Views/layouts/base.php';
+    exit;
+}
+
 if (in_array($argv[1] ?? '', ['--search-empty', '--search-empty-customer'], true)) {
     $data = ['title' => 'Search flights', 'user' => ($argv[1] === '--search-empty-customer') ? ['role' => 'customer', 'name' => 'Preview Customer'] : null, 'flash' => null, 'upcomingFlights' => [], 'airports' => [], 'values' => ['from_airport_id' => '', 'to_airport_id' => '', 'travel_date' => ''], 'errors' => [], 'submitted' => false, 'today' => gmdate('Y-m-d')];
     $view = 'customer/flights/search'; $viewFile = BASE_PATH . '/app/Views/customer/flights/search.php';

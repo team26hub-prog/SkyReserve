@@ -100,6 +100,7 @@ CREATE TABLE bookings (
     UNIQUE KEY uq_bookings_submission (submission_key),
     UNIQUE KEY uq_bookings_id_flight (id, flight_id),
     KEY idx_bookings_user_created (user_id, created_at),
+    KEY idx_bookings_created (created_at),
     KEY idx_bookings_flight_status (flight_id, status),
     KEY idx_bookings_status_expiry (status, expires_at),
     CONSTRAINT fk_bookings_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT,

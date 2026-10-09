@@ -8,6 +8,7 @@ use PDO;
 final class AdminReport extends Model
 {
     public const PAGE_SIZE = 50;
+    public const ANALYTICS_PERIODS = ['7' => '7 Days', '30' => '30 Days', '12m' => '12 Months'];
     public const PAYMENT_STATUSES = ['pending' => 'Pending', 'verified' => 'Verified', 'rejected' => 'Rejected', 'refunded' => 'Refunded'];
     public const REPORTS = [
         'bookings' => ['title' => 'Bookings Report', 'date' => 'Booking creation', 'statuses' => ['booking_status','payment_status']],
@@ -28,6 +29,51 @@ final class AdminReport extends Model
             (SELECT COUNT(*) FROM cancellations WHERE status = 'pending') AS pending_cancellations")->fetch();
         $metrics['revenue'] = $this->db()->query("SELECT currency, SUM(amount) AS amount FROM payments WHERE status = 'verified' GROUP BY currency ORDER BY currency")->fetchAll();
         return $metrics;
+    }
+    public function analytics(array $input = [], ?DateTimeImmutable $today = null): array
+    {
+        foreach ($input as $key => $value) {
+            if ($key !== 'period' || !is_string($value)) throw new DomainException('Choose a valid analytics period.');
+        }
+        $period = $input['period'] ?? '30';
+        if (!isset(self::ANALYTICS_PERIODS[$period])) throw new DomainException('Choose 7 Days, 30 Days, or 12 Months.');
+        $today = ($today ?? new DateTimeImmutable('today'))->setTimezone(new \DateTimeZone('UTC'))->setTime(0, 0);
+        $monthly = $period === '12m';
+        $start = $monthly ? $today->modify('first day of this month')->modify('-11 months') : $today->modify('-' . ((int) $period - 1) . ' days');
+        $end = $today->modify('+1 day');
+        $buckets = [];
+        for ($date = $start; $date < $end; $date = $date->modify($monthly ? '+1 month' : '+1 day')) {
+            $buckets[] = $date->format($monthly ? 'Y-m' : 'Y-m-d');
+        }
+        $bounds = [$start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s')];
+        $db = $this->db();
+        // Four aggregate queries regardless of chart points, currencies or route count.
+        $counts = array_column($db->query('SELECT status, COUNT(*) AS count FROM bookings GROUP BY status')->fetchAll(), 'count', 'status');
+        $statuses = [];
+        foreach (Booking::STATUSES as $status => $label) $statuses[] = ['status' => $status, 'label' => $label, 'count' => (int) ($counts[$status] ?? 0)];
+        $group = $monthly ? "DATE_FORMAT(created_at, '%Y-%m')" : 'DATE(created_at)';
+        $query = $db->prepare("SELECT $group AS bucket, COUNT(*) AS count FROM bookings WHERE created_at >= ? AND created_at < ? GROUP BY bucket ORDER BY bucket");
+        $query->execute($bounds);
+        $bookingCounts = array_column($query->fetchAll(), 'count', 'bucket');
+        $trend = [];
+        foreach ($buckets as $bucket) $trend[] = ['bucket' => $bucket, 'count' => (int) ($bookingCounts[$bucket] ?? 0)];
+        $query = $db->prepare("SELECT $group AS bucket, currency, SUM(amount) AS amount FROM payments WHERE status = 'verified' AND created_at >= ? AND created_at < ? GROUP BY bucket, currency ORDER BY currency, bucket");
+        $query->execute($bounds);
+        $amounts = [];
+        foreach ($query->fetchAll() as $row) $amounts[$row['currency']][$row['bucket']] = $row['amount'];
+        $revenue = [];
+        foreach ($amounts as $currency => $values) {
+            $points = [];
+            foreach ($buckets as $bucket) $points[] = ['bucket' => $bucket, 'amount' => $values[$bucket] ?? '0.00'];
+            $revenue[] = ['currency' => $currency, 'points' => $points];
+        }
+        $routes = $db->query('SELECT o.iata_code AS origin, d.iata_code AS destination, COUNT(*) AS count
+            FROM bookings b JOIN flights f ON f.id = b.flight_id
+            JOIN airports o ON o.id = f.origin_airport_id JOIN airports d ON d.id = f.destination_airport_id
+            GROUP BY o.id, d.id, o.iata_code, d.iata_code ORDER BY count DESC, o.iata_code, d.iata_code LIMIT 5')->fetchAll();
+        foreach ($routes as &$route) $route['count'] = (int) $route['count'];
+        unset($route);
+        return ['period' => $period, 'monthly' => $monthly, 'start' => $start->format('Y-m-d'), 'end' => $today->format('Y-m-d'), 'statuses' => $statuses, 'bookings' => $trend, 'revenue' => $revenue, 'routes' => $routes];
     }
     public function flightOptions(): array
     {

@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkPassengerForm } from './test_passenger_form.mjs';
+import { checkReportAnalytics } from './test_report_analytics.mjs';
+import { checkTicketPdf } from './test_ticket_pdf.mjs';
 
 const base = new URL(process.argv[2] || 'http://127.0.0.1:8000');
 if (base.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(base.hostname) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw new Error('Use a local server URL.');
@@ -152,7 +154,37 @@ try {
     });
     await command('Page.enable');
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
-    if (process.argv.includes('--passenger-only')) {
+    if (process.argv.includes('--analytics-only') || process.argv.includes('--tickets-only')) {
+        await signIn('customer');
+        await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
+        await evaluate(`document.querySelector('#passenger_id').selectedIndex=1; document.querySelector('input[name="seat_id"][value="${fixture.seatId}"]').checked=true; document.querySelector('.account-form').requestSubmit(); true`);
+        await respondToConfirmation(); await ready('/bookings/show');
+        await visit(`/bookings/payment?booking_id=${fixture.bookingId}`);
+        await evaluate(`document.querySelector('#method').value='bank_transfer'; document.querySelector('#transaction_reference').value='ANALYTICS-TEST'; document.querySelector('.account-form').requestSubmit(); true`);
+        await respondToConfirmation(); await ready('/bookings/show');
+        await visit('/profile'); await signOut('customer'); await signIn('admin');
+        await visit('/admin/payments');
+        const paymentId = await evaluate(`(() => { const row=[...document.querySelectorAll('tbody tr')].find(row=>row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a[href^="/admin/payments/show"]').href).searchParams.get('id'); })()`);
+        await visit(`/admin/payments/show?id=${paymentId}`);
+        await evaluate(`document.querySelector('form[action^="/admin/payments/verify"]').requestSubmit(); true`);
+        await respondToConfirmation(); await ready('/admin/payments/show');
+        if (process.argv.includes('--tickets-only')) {
+            await evaluate(`document.querySelector('form[action^="/admin/bookings/tickets"]').requestSubmit();true`);
+            await respondToConfirmation(); await ready('/admin/tickets/show');
+            const ticketId = await evaluate(`new URL(location.href).searchParams.get('id')`);
+            await checkPages([['admin-ticket', `/admin/tickets/show?id=${ticketId}`]], 'admin');
+            await checkTicketPdf({command,evaluate,assert,visit,artifacts,ticketId,role:'admin'});
+            await visit('/admin'); await signOut('admin'); await signIn('customer');
+            await checkPages([['customer-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
+            await checkTicketPdf({command,evaluate,assert,visit,artifacts,ticketId,role:'customer'});
+            console.log(`${checks} ticket PDF browser checks passed. Screenshots and PDFs: ${artifacts}`);
+        } else {
+        await checkPages([['report-analytics', '/admin/reports']], 'admin');
+        const screenshot = async name => { const result = await command('Page.captureScreenshot', {captureBeyondViewport: true}); writeFileSync(join(artifacts,name), Buffer.from(result.data,'base64')); };
+        await checkReportAnalytics({command,evaluate,assert,visit,waitFor,emptyHtml:execFileSync(php,[fixtureScript,'--analytics-empty'],{encoding:'utf8'}),screenshot});
+        console.log(`${checks} analytics browser checks passed. Screenshots: ${artifacts}`);
+        }
+    } else if (process.argv.includes('--passenger-only')) {
         await signIn('customer');
         await checkPages([['booking-form', `/bookings/create?flight_id=${fixture.flightId}`], ['booking-summary', `/bookings/show?id=${fixture.bookingId}`]], 'customer');
         await visit(`/bookings/show?id=${fixture.bookingId}`);
@@ -408,9 +440,10 @@ try {
     await signIn('customer');
     await checkPages([['ticket-booking-summary', `/bookings/show?id=${fixture.bookingId}`], ['customer-ticket', `/tickets/show?id=${ticketId}`]], 'customer');
     assert(await evaluate(`window.print = () => { window.ticketPrinted = true; }; document.querySelector('[data-print-ticket]').click(); window.ticketPrinted === true`), 'Print button invokes browser printing');
-    const offline = await evaluate(`(async () => { const response = await fetch('/tickets/download?id=${ticketId}'); return { status: response.status, disposition: response.headers.get('content-disposition'), html: await response.text() }; })()`);
-    assert(offline.status === 200 && offline.disposition.includes('.html') && offline.html.includes('Preview Passenger') && offline.html.includes('@media print') && !offline.html.includes('<script'), 'Customer downloads a self-contained printable ticket');
-    writeFileSync(join(artifacts, 'ticket-download.html'), offline.html);
+    const offline = await evaluate(`(async () => { const response = await fetch('/tickets/download?id=${ticketId}'); const bytes = new Uint8Array(await response.arrayBuffer()); let binary=''; for (const byte of bytes) binary+=String.fromCharCode(byte); return { status: response.status, disposition: response.headers.get('content-disposition'), type: response.headers.get('content-type'), data: btoa(binary) }; })()`);
+    const downloadedPdf = Buffer.from(offline.data, 'base64');
+    assert(offline.status === 200 && offline.disposition.includes('.pdf') && offline.type === 'application/pdf' && downloadedPdf.subarray(0,5).toString() === '%PDF-', 'Customer downloads a real PDF ticket');
+    writeFileSync(join(artifacts, 'ticket-download.pdf'), downloadedPdf);
     await checkPages([['my-bookings', '/bookings'], ['my-bookings-empty', '/bookings?status=cancelled'], ['cancellation-form', `/bookings/cancel?booking_id=${fixture.bookingId}`]], 'customer');
     await evaluate(`document.querySelector('main form[data-confirm]').requestSubmit(); true`);
     await respondToConfirmation(false);

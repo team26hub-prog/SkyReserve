@@ -12,11 +12,7 @@
             <?php endif; ?>
         </div>
     </div>
-    <div class="hero-art" aria-hidden="true">
-        <div class="orbit"></div>
-        <svg viewBox="0 0 100 100" fill="currentColor"><path d="M87 9c-3-3-8-2-11 1L58 29 20 19l-8 8 31 18-17 19-13-2-6 6 18 9 9 18 6-6-2-13 19-17 18 31 8-8-10-38 19-18c3-3 4-8 1-11Z"/></svg>
-        <span class="journey-note">A window to your next destination</span>
-    </div>
+    <div class="hero-art" aria-hidden="true"></div>
 </section>
 <section aria-labelledby="journey-title">
     <div class="section-heading"><h2 id="journey-title">From plans to takeoff</h2><a href="/flights">Explore available flights →</a></div>

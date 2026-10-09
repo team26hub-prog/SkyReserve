@@ -48,6 +48,19 @@ $token = static function (array $response): string {
     if (!preg_match('/name="_token" value="([a-f0-9]{64})"/', $response['body'], $match)) throw new RuntimeException('CSRF token missing.');
     return $match[1];
 };
+$pdfText = static function (string $pdf): ?string {
+    $binary = getenv('SKYRESERVE_TEST_PDFTOTEXT');
+    if (!$binary) return null;
+    $file = tempnam(sys_get_temp_dir(), 'skyreserve-ticket-');
+    try {
+        file_put_contents($file, $pdf);
+        $pipes = []; $process = proc_open([$binary, '-layout', '-enc', 'UTF-8', $file, '-'], [0 => ['pipe','r'],1 => ['pipe','w'],2 => ['pipe','w']], $pipes);
+        if (!is_resource($process)) throw new RuntimeException('PDF text reader failed to start.');
+        fclose($pipes[0]); $text = stream_get_contents($pipes[1]); $errors = stream_get_contents($pipes[2]); fclose($pipes[1]); fclose($pipes[2]);
+        if (proc_close($process) !== 0) throw new RuntimeException('PDF text reader failed: ' . $errors);
+        return $text;
+    } finally { if (is_string($file) && is_file($file)) unlink($file); }
+};
 try {
     $db = Database::connection();
     foreach (['customer','other','admin'] as $role) {
@@ -113,9 +126,24 @@ try {
         $assert(str_contains($detail['body'], $content), 'ticket content: ' . $content);
     }
     $assert(!str_contains($detail['body'], '<b>Ticket Passenger') && str_contains($detail['body'], 'data-print-ticket') && str_contains($detail['body'], 'ticket.css'), 'escaped ticket with print control and styles');
-    $html = $request($customer, 'GET', $download);
-    $assert($html['status'] === 200 && str_contains($html['headers']['content-disposition'], '.html') && str_contains($html['headers']['content-type'], 'text/html') && str_contains($html['headers']['cache-control'], 'no-store'), 'download is private HTML attachment');
-    $assert(str_contains($html['body'], '@media print') && str_contains($html['body'], $issued[0]['ticket_number']) && !str_contains($html['body'], '<script') && !str_contains($html['body'], 'href="/assets') && !str_contains($html['body'], 'class="site-header"'), 'download self-contained, printable, no scripts or navigation');
+    $pdf = $request($customer, 'GET', $download);
+    $assert($pdf['status'] === 200 && str_contains($pdf['headers']['content-disposition'], '.pdf') && $pdf['headers']['content-type'] === 'application/pdf' && str_contains($pdf['headers']['cache-control'], 'no-store'), 'download is a private PDF attachment');
+    $assert(str_starts_with($pdf['body'], '%PDF-') && str_ends_with(trim($pdf['body']), '%%EOF') && strlen($pdf['body']) > 1000 && (int) $pdf['headers']['content-length'] === strlen($pdf['body']), 'download contains complete PDF bytes with correct length');
+    $assert(preg_match_all('~/Type\s*/Page\b~', $pdf['body']) === 1 && !str_contains($pdf['body'], '/JavaScript'), 'ticket PDF fits one page without executable JavaScript');
+    $assert(str_contains($detail['body'], '>Download PDF</a>') && str_contains($detail['body'], 'view offline.') && !str_contains($detail['body'], 'Download ticket (HTML)'), 'ticket action and guidance describe direct PDF download');
+    if (($text = $pdfText($pdf['body'])) !== null) {
+        foreach ([$issued[0]['ticket_number'], 'M10-OK-' . $suffix, '<b>Ticket Passenger 0</b>', 'AB123456', '1A / Business', 'PKR 1200.50', $day . ' 10:00:00', $day . ' 12:00:00', 'Confirmed', 'Ticket Origin', 'Ticket Destination'] as $content) $assert(str_contains($text, $content), 'PDF contains literal ticket data: ' . $content);
+        $db->prepare('UPDATE passengers SET full_name = ? WHERE id = ?')->execute(['Zoë 李 Иванов', $success['passengers'][0]]);
+        $unicodePdf = $request($customer, 'GET', $download);
+        $assert(str_contains($pdfText($unicodePdf['body']), 'Zoë 李 Иванов'), 'PDF preserves Unicode passenger names');
+        $db->prepare('UPDATE passengers SET full_name = ? WHERE id = ?')->execute(['<b>Ticket Passenger 0</b>', $success['passengers'][0]]);
+        $db->prepare("UPDATE tickets SET status = 'void' WHERE id = ?")->execute([$ticketId]);
+        $voidPdf = $request($customer, 'GET', $download);
+        $assert(str_contains($pdfText($voidPdf['body']), 'VOID TICKET') && preg_match_all('~/Type\s*/Page\b~', $voidPdf['body']) === 1, 'void PDF retains invalid-for-travel warning on one page');
+        $db->prepare("UPDATE tickets SET status = 'valid' WHERE id = ?")->execute([$ticketId]);
+    }
+    $adminPdf = $request($admin, 'GET', '/admin' . $download);
+    $assert($adminPdf['headers']['content-type'] === 'application/pdf' && str_starts_with($adminPdf['body'], '%PDF-'), 'authorized admin also downloads a PDF');
     $head = $request($customer, 'HEAD', $download); $assert($head['status'] === 200 && $head['body'] === '', 'download HEAD checks authorization without body');
     $assert(str_contains($request($customer, 'GET', '/bookings/show?id=' . $success['booking'])['body'], $show), 'booking summary links issued ticket');
     $assert(str_contains($request($admin, 'GET', '/admin/payments/show?id=' . $success['payment'])['body'], '/admin' . $show), 'related admin payment links issued ticket');

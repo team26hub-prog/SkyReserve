@@ -1,6 +1,6 @@
 # SkyReserve
 
-SkyReserve is a single-airline ticketing and operations application built with **plain PHP, MySQL, HTML, CSS, and vanilla JavaScript**, using MVC. Its 12 core modules are complete. No frontend framework, Composer package, or build step is required.
+SkyReserve is a single-airline ticketing and operations application built with **plain PHP, MySQL, HTML, CSS, and vanilla JavaScript**, using MVC. Its 12 core modules are complete. No frontend framework or build step is required. Ticket PDF downloads use the server-side [Dompdf library](https://github.com/dompdf/dompdf); run `composer install` after checkout to install the locked dependencies.
 
 ## Functionality
 
@@ -10,7 +10,7 @@ SkyReserve is a single-airline ticketing and operations application built with *
 | Flight search by route and travel date | Airport, aircraft, seat, and flight management |
 | Passenger details and booking references | Manual payment verification or rejection |
 | Seat selection and manual payment submission | Cancellation approval or rejection |
-| Protected receipts and tickets; print/HTML download | Booking, flight, payment, cancellation, and passenger reports |
+| Protected receipts and tickets; print/PDF download | Booking, flight, payment, cancellation, and passenger reports |
 | My Bookings and cancellation requests | Metrics and verified revenue grouped by currency |
 
 Payments are manual. Tickets require a confirmed booking, verified payment, and valid passenger/seat assignments. Cancellation approval releases seats and voids tickets; it does not automatically refund payments. Automatic refunds, online payment processing, check-in, and boarding passes are outside the implemented scope.
@@ -45,6 +45,8 @@ The database contains `users`, `airports`, `aircraft`, `seats`, `flights`, `book
 ## Local setup
 
 Run commands from the project root in Laragon's terminal, where PHP and MySQL are on PATH.
+
+Install the PDF dependency with `composer install`. PHP requires the DOM, mbstring, and GD extensions; Composer also needs ZIP or an unzip utility to install packages. The locked packages are ignored under `vendor/` and installed again on each deployment.
 
 1. Start MySQL and configure the environment:
 
@@ -132,6 +134,7 @@ php scripts/migrate_module6.php
 php scripts/migrate_module8.php
 php scripts/migrate_module11.php
 php scripts/migrate_passenger_identity.php
+php scripts/migrate_report_analytics.php
 ```
 
 These repeat-safe scripts check existing structure before applying changes. Module 11 refuses legacy pending cancellation records whose previous booking status is unknown; resolve those manually first. MySQL DDL is not transactional. Fresh installations using the current schema do not need these upgrades.
@@ -154,7 +157,9 @@ See `routes/web.php` for every action. Mutations require POST and CSRF tokens; l
 
 Booking progression: **Pending Payment → Payment Submitted → Confirmed** after administrator verification. Rejection returns it to Pending Payment. Cancellation Requested holds the existing seat/ticket state until review; approval cancels and releases/voids it, while rejection restores the saved previous status. Confirmed bookings ignore former payment deadlines. Transactions and unique constraints guard concurrent submissions and issuance.
 
-All application dates/times and date filters use **UTC**. Airport timezones are metadata; displayed times are not converted. Reports use inclusive date boundaries and 50-row pagination. Booking/payment/cancellation reports filter creation/submission/request dates; flight/passenger reports filter departure dates. Verified revenue is gross verified payment value grouped by currency and includes cancelled bookings until payments are manually handled. Ticket details use current related records, not immutable snapshots. Downloads are self-contained printable HTML; the browser can print or save as PDF.
+All application dates/times and date filters use **UTC**. Airport timezones are metadata; displayed times are not converted. Reports use inclusive date boundaries and 50-row pagination. Booking/payment/cancellation reports filter creation/submission/request dates; flight/passenger reports filter departure dates. Verified revenue is gross verified payment value grouped by currency and includes cancelled bookings until payments are manually handled. Ticket details use current related records, not immutable snapshots. Ticket downloads are private PDF attachments generated in memory through the existing authorized routes, with embedded Unicode fonts and no remote assets or scripting. Print ticket still opens the browser print dialog.
+
+The admin Reports landing page adds a read-only Analytics Overview below its existing cards: all-time booking status counts, booking creation trends, verified-payment revenue by submission date with separate currency charts, and the top five directional routes by all-time booking count. Trend periods are 7 days, 30 days (default), or the current month plus the previous 11 months, including today in UTC. Missing date buckets are zero-filled; future timestamps are excluded from trends. Four aggregate queries serve all charts, with no queries per point or currency. Native SVG charts need no external library; legends and expandable data tables remain available without JavaScript. The repeat-safe analytics migration adds a booking creation-date index; payment aggregation uses the existing status/creation index.
 
 ## Security and hosting
 
@@ -187,5 +192,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Browser checks failed' }
 ```
 
 The browser runner accepts a third argument for `php.exe`; set `SKYRESERVE_TEST_CHROME` to override Chrome's executable path. Screenshots are saved in the temporary directory printed by the runner. Integration coverage includes authentication, CRUD, search, booking relationships, concurrent seat/payment/ticket/cancellation operations, uploads and rollback cleanup, authorization/CSRF, reports, responsive layouts, form interactions, and ticket printing.
+
+To run focused analytics browser checks, append `--analytics-only` after the PHP executable argument. This verifies the real customer payment/admin verification flow, charts at phone/tablet/desktop widths, period changes, native chart data controls, empty states, and the JavaScript-disabled fallback. `scripts/test_reports.php` includes aggregate accuracy, currency separation, escaping, filter validation, and read-only regression checks.
+
+Append `--tickets-only` to run focused ticket PDF browser checks, including actual downloads at desktop and mobile widths for both roles. For additional PDF text/content checks in `scripts/test_tickets.php`, set `SKYRESERVE_TEST_PDFTOTEXT` to a local `pdftotext` executable; temporary documents are removed after extraction.
 
 Before deployment, manually verify Apache/TLS configuration, permissions, real payment instructions, cross-browser printing, and keyboard/screen-reader accessibility. Automated local checks supplement these reviews.

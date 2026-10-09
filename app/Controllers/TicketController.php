@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Core\Session;
+use App\Core\TicketPdf;
 use App\Models\Ticket;
 use DomainException;
 use OutOfBoundsException;
@@ -37,12 +38,22 @@ final class TicketController extends Controller
         $ticket = (new Ticket())->findAuthorized($this->id('id'), $user);
         if (!$ticket) { $this->error(404, 'The ticket does not exist or is not accessible.'); return; }
         if ($download) {
-            // A self-contained document works offline and can be printed / saved as PDF.
-            $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            header('Content-Type: text/html; charset=utf-8');
-            header('Content-Disposition: attachment; filename="SkyReserve-ticket-' . (int) $ticket['id'] . '.html"');
-            header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");
-            require BASE_PATH . '/app/Views/tickets/download.php';
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="SkyReserve-ticket-' . (int) $ticket['id'] . '.pdf"');
+            header("Content-Security-Policy: default-src 'none'; sandbox");
+            // HEAD checks the same role and ownership without rendering a document.
+            if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') return;
+            try { $pdf = TicketPdf::render($ticket); }
+            catch (Throwable $exception) {
+                error_log((string) $exception);
+                header_remove('Content-Disposition');
+                header_remove('Content-Security-Policy');
+                header('Content-Type: text/html; charset=utf-8');
+                $this->error(503, 'The PDF could not be generated. Please try again.');
+                return;
+            }
+            header('Content-Length: ' . strlen($pdf));
+            echo $pdf;
             return;
         }
         $this->render($role . '/tickets/show', ['title' => 'Ticket ' . $ticket['ticket_number'], 'ticket' => $ticket, 'ticketPrefix' => $role === 'admin' ? '/admin' : '']);

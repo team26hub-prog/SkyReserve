@@ -8,7 +8,13 @@ use DomainException;
 final class AdminReportController extends Controller
 {
     public function __construct() { $this->requireRole('admin'); }
-    public function index(): void { $this->render('admin/reports/index',['title' => 'Reports','wide' => true]); }
+    public function index(): void
+    {
+        $analytics = null; $error = null;
+        try { $analytics = (new AdminReport())->analytics($_GET); }
+        catch (DomainException $exception) { http_response_code(422); $error = $exception->getMessage(); }
+        $this->render('admin/reports/index',['title' => 'Reports','wide' => true,'analytics' => $analytics,'analyticsError' => $error]);
+    }
     public function bookings(): void { $this->show('bookings'); }
     public function flights(): void { $this->show('flights'); }
     public function payments(): void { $this->show('payments'); }
