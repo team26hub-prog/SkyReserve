@@ -1,5 +1,5 @@
 <span class="eyebrow">Operations overview</span>
-<h1>Admin area</h1>
+<h1>Admin panel</h1>
 <p class="muted">Welcome, <?= $escape($data['user']['name']) ?>. Your airline workspace is ready.</p>
 <section aria-label="Dashboard metrics" class="dashboard-metrics">
     <?php foreach (['customers' => 'Total customers','flights' => 'Total flights','upcoming_flights' => 'Upcoming flights','bookings' => 'Total bookings','confirmed_bookings' => 'Confirmed bookings','pending_payments' => 'Pending payments','pending_cancellations' => 'Pending cancellation requests'] as $key => $label): ?>
@@ -13,12 +13,19 @@
 <p class="muted">Counts include all stored records. Upcoming flights are Scheduled/Delayed with a future UTC departure. Verified revenue is gross verified payment amounts, grouped by currency; manual cancellations do not automatically reduce it.</p>
 <p><a class="button" href="/admin/reports">Open reports</a></p>
 <div class="management-links">
-    <a href="/admin/airports"><span class="feature-number" aria-hidden="true">⌖</span><br>Manage airports<small>Keep your destinations and airport information up to date.</small></a>
-    <a href="/admin/aircraft"><span class="feature-number" aria-hidden="true">↗</span><br>Manage aircraft and seats<small>Organize your fleet, capacity, and seat configurations.</small></a>
-    <a href="/admin/flights"><span class="feature-number" aria-hidden="true">⇄</span><br>Manage flights<small>Manage routes, schedules, fares, and flight statuses.</small></a>
-    <a href="/admin/payments"><span class="feature-number"><?= (int) $data['pendingPayments'] ?></span><br>Review payments<small><?= (int) $data['pendingPayments'] ?> pending payment(s) awaiting review.</small></a>
-    <a href="/admin/cancellations"><span class="feature-number"><?= (int) $data['pendingCancellations'] ?></span><br>Review cancellations<small><?= (int) $data['pendingCancellations'] ?> pending cancellation request(s).</small></a>
-    <a href="/admin/reports"><span class="feature-number" aria-hidden="true">▤</span><br>View reports<small>Bookings, flights, payments, cancellations, and flight passenger lists.</small></a>
+    <?php
+    $managementCards = [
+        '/admin/airports' => ['Manage airports', 'Keep your destinations and airport information up to date.'],
+        '/admin/aircraft' => ['Manage aircraft and seats', 'Organize your fleet, capacity, and seat configurations.'],
+        '/admin/flights' => ['Manage flights', 'Manage routes, schedules, fares, and flight statuses.'],
+        '/admin/payments' => ['Review payments', (int) $data['pendingPayments'] . ' pending payment(s) awaiting review.'],
+        '/admin/cancellations' => ['Review cancellations', (int) $data['pendingCancellations'] . ' pending cancellation request(s).'],
+        '/admin/reports' => ['View reports', 'Bookings, flights, payments, cancellations, and flight passenger lists.'],
+    ];
+    // Use the same SVG symbols as the admin navigation rendered by the layout.
+    foreach ($managementCards as $path => [$label, $description]): ?>
+    <a href="<?= $path ?>"><span class="management-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><?= $adminLinks[$path][1] ?></svg></span><br><?= $escape($label) ?><small><?= $escape($description) ?></small></a>
+    <?php endforeach; ?>
 </div>
 <h2>Administrator account</h2>
 <dl class="profile-details">

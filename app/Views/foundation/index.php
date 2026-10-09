@@ -26,26 +26,6 @@
         <article class="feature-card"><span class="feature-number">03</span><h3>Choose your seat</h3><p>See your aircraft's available seats and select your preferred spot for the journey.</p></article>
     </div>
 </section>
-<section class="home-section" aria-labelledby="upcoming-title">
-    <div class="section-heading"><h2 id="upcoming-title">Upcoming flights</h2><a class="button button-secondary" href="/flights">Search all flights</a></div>
-    <p class="muted">Explore the next available departures. Times are shown in UTC; seat availability may change.</p>
-    <?php if (!$data['upcomingFlights']): ?>
-        <div class="empty-state" data-upcoming-empty><h3>Your next destination is on the horizon</h3><p>No scheduled flights are available right now. Check back for upcoming departures.</p><a class="button button-secondary" href="/flights">Search flights</a></div>
-    <?php else: ?>
-        <div class="upcoming-grid">
-        <?php foreach ($data['upcomingFlights'] as $flight): ?>
-            <article class="card upcoming-card" data-upcoming-flight="<?= (int) $flight['id'] ?>" aria-labelledby="upcoming-flight-<?= (int) $flight['id'] ?>">
-                <div class="page-heading"><h3 id="upcoming-flight-<?= (int) $flight['id'] ?>"><?= $escape($flight['flight_number']) ?></h3><span class="badge" data-status="scheduled">Scheduled</span></div>
-                <div class="route-display" aria-label="<?= $escape($flight['origin_code'] . ' to ' . $flight['destination_code']) ?>"><span class="route-code"><?= $escape($flight['origin_code']) ?></span><span class="route-line" aria-hidden="true">→</span><span class="route-code"><?= $escape($flight['destination_code']) ?></span></div>
-                <p class="muted"><?= $escape($flight['origin_city'] . ' → ' . $flight['destination_city']) ?></p>
-                <dl class="upcoming-facts"><dt>Departure (UTC)</dt><dd><time datetime="<?= $escape(str_replace(' ', 'T', $flight['departure_at']) . 'Z') ?>"><?= $escape(gmdate('d M Y · H:i', strtotime($flight['departure_at'] . ' UTC'))) ?></time></dd><dt>Available seats</dt><dd><?= (int) $flight['available_seats'] ?></dd></dl>
-                <div class="upcoming-price"><small>Fare per passenger</small><strong><?= $escape($flight['currency'] . ' ' . number_format((float) $flight['base_fare'], 2)) ?></strong></div>
-                <a class="button button-secondary" href="/flights/show?id=<?= (int) $flight['id'] ?>" aria-label="View flight <?= $escape($flight['flight_number']) ?>">View flight <span aria-hidden="true">→</span></a>
-            </article>
-        <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-</section>
 <section class="home-section" aria-labelledby="benefits-title">
     <div class="section-heading"><h2 id="benefits-title">Why choose SkyReserve</h2></div>
     <div class="benefit-grid">
@@ -58,8 +38,15 @@
     <div class="section-heading"><h2 id="booking-journey-title">Your booking journey</h2></div>
     <p class="muted">A clear path from finding a flight to receiving your ticket.</p>
     <ol class="booking-journey" aria-label="Booking steps">
-        <?php foreach (['Search', 'Book', 'Choose Seat', 'Submit Payment', 'Verification', 'Ticket'] as $index => $step): ?>
-            <li><span class="feature-number" aria-hidden="true"><?= sprintf('%02d', $index + 1) ?></span><span><?= $escape($step) ?></span><?php if ($index < 5): ?><span class="journey-arrow" aria-hidden="true">→</span><?php endif; ?></li>
+        <?php
+        $journeyRole = $data['user']['role'] ?? null;
+        $journeyPaths = match ($journeyRole) {
+            'customer' => ['/flights', '/bookings', '/bookings?section=seats', '/bookings?section=payments', '/bookings?section=payments&status=payment_submitted', '/bookings?section=tickets'],
+            'admin' => ['/flights', '/admin/flights', '/admin/aircraft', '/admin/payments', '/admin/payments?status=pending', '/admin/payments?status=verified'],
+            default => ['/flights', '/login', '/login', '/login', '/login', '/login'],
+        };
+        foreach (['Search', 'Book', 'Choose Seat', 'Submit Payment', 'Verification', 'Ticket'] as $index => $step): ?>
+            <li><a href="<?= $escape($journeyPaths[$index]) ?>"><span class="feature-number" aria-hidden="true"><?= sprintf('%02d', $index + 1) ?></span><span><?= $escape($step) ?></span></a><?php if ($index < 5): ?><span class="journey-arrow" aria-hidden="true">→</span><?php endif; ?></li>
         <?php endforeach; ?>
     </ol>
     <p class="muted journey-explanation">The airline reviews your payment before confirmation. Your ticket becomes available after verification and a valid seat assignment.</p>

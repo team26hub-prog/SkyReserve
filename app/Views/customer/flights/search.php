@@ -14,12 +14,15 @@
         </select></div>
     <?php endforeach; ?>
     <div><label for="travel_date">Travel date (UTC)</label><input type="date" id="travel_date" name="travel_date" min="<?= $data['today'] ?>" max="9999-12-31" value="<?= $escape($data['values']['travel_date']) ?>" required></div>
-    <button type="submit"<?= count($data['airports']) < 2 ? ' disabled' : '' ?>>Search flights</button>
+    <noscript><button type="submit"<?= count($data['airports']) < 2 ? ' disabled' : '' ?>>Search flights</button></noscript>
 </form>
 <?php if ($data['errors']): ?>
     <div class="notice error" role="alert"><ul><?php foreach ($data['errors'] as $error): ?><li><?= $escape($error) ?></li><?php endforeach; ?></ul></div>
 <?php endif; ?>
 <?php if (count($data['airports']) < 2): ?><p class="empty-state">Flight routes are not available yet. Please check again later.</p><?php endif; ?>
+<?php if (!$data['submitted']): ?>
+    <?php require BASE_PATH . '/app/Views/customer/flights/upcoming.php'; ?>
+<?php endif; ?>
 <?php if ($data['submitted'] && !$data['errors']): ?>
     <h2>Search results</h2>
     <?php if (!$data['flights']): ?>

@@ -23,8 +23,8 @@
 @page { size: A4; margin: 15mm; }
 @media print {
     body, body.ticket-download { background: #fff !important; margin: 0; padding: 0; color: #000; }
-    .site-header, .site-footer, .admin-sidebar, .skip-link, .ticket-actions, .notice { display: none !important; }
-    .app-shell, .app-main, .admin-layout .app-shell, .admin-layout .app-main { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
+    .site-header, .site-footer, .admin-sidebar, .customer-sidebar, .skip-link, .ticket-actions, .notice { display: none !important; }
+    .app-shell, .app-main, .admin-layout .app-shell, .admin-layout .app-main, .customer-layout .app-shell, .customer-layout .app-main { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
     .ticket-document { border-radius: 0; break-inside: avoid; font-size: 12px; }
     .ticket-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
     .ticket-heading, .ticket-route, .ticket-grid { padding: 20px; }

@@ -2,6 +2,86 @@
 
 document.documentElement.classList.add('js');
 const header = document.querySelector('.site-header');
+const showToast = (message, kind = 'info', title = '') => {
+    const region = document.querySelector('.toast-region');
+    if (!region || !message) return;
+    if ([...region.children].some(toast => toast.querySelector('.toast-message')?.textContent === message)) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.dataset.kind = kind;
+    toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-atomic', 'true');
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 48 48');
+    svg.setAttribute('fill', 'none');
+    const ring = document.createElementNS(svg.namespaceURI, 'circle');
+    ring.setAttribute('cx', '24'); ring.setAttribute('cy', '24'); ring.setAttribute('r', '20');
+    ring.setAttribute('stroke', 'currentColor'); ring.setAttribute('stroke-width', '4');
+    ring.setAttribute('class', 'toast-icon-ring');
+    const mark = document.createElementNS(svg.namespaceURI, 'path');
+    mark.setAttribute('d', kind === 'success' ? 'm13 24 7 7 15-15' : kind === 'error' ? 'M24 14v13m0 6v1' : 'M24 22v12m0-20v1');
+    mark.setAttribute('stroke', 'currentColor'); mark.setAttribute('stroke-width', '5');
+    mark.setAttribute('stroke-linecap', 'round'); mark.setAttribute('stroke-linejoin', 'round');
+    svg.append(ring, mark);
+    icon.append(svg);
+    const content = document.createElement('div');
+    content.className = 'toast-content';
+    const heading = document.createElement('p');
+    heading.className = 'toast-title';
+    const actionTitles = [
+        [/^Welcome back/i, 'Signed in'], [/^You have been logged out/i, 'Signed out'],
+        [/^Account created/i, 'Account created'], [/^Invalid email or password/i, 'Sign-in failed'],
+        [/^Payment verified/i, 'Payment verified'], [/^Payment rejected/i, 'Payment rejected'],
+        [/^Payment submitted/i, 'Payment submitted'], [/^Cancellation approved/i, 'Cancellation approved'],
+        [/^Cancellation rejected/i, 'Cancellation rejected'], [/^Cancellation requested/i, 'Cancellation requested'],
+        [/^Seat selected/i, 'Seat selected'], [/^Ticket generated/i, 'Ticket ready'], [/^Booking created/i, 'Booking created'],
+    ];
+    heading.textContent = title || actionTitles.find(([pattern]) => pattern.test(message))?.[1] || (kind === 'error' ? 'Please check your details' : kind === 'success' ? 'Success' : 'Notification');
+    const text = document.createElement('p');
+    text.className = 'toast-message';
+    text.textContent = message;
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'toast-dismiss';
+    dismiss.setAttribute('aria-label', 'Dismiss notification');
+    dismiss.textContent = '×';
+    const progress = document.createElement('div');
+    progress.className = 'toast-progress';
+    progress.setAttribute('aria-hidden', 'true');
+    progress.hidden = kind === 'error';
+    const progressBar = document.createElement('span');
+    progress.append(progressBar);
+    const duration = 8000;
+    let remaining = duration, startedAt;
+    const countdown = kind === 'error' || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? null : progressBar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration, fill: 'forwards' });
+    countdown?.pause();
+    let timer;
+    const remove = () => { clearTimeout(timer); countdown?.cancel(); toast.remove(); };
+    const pauseTimer = () => {
+        countdown?.pause();
+        if (!timer) return;
+        remaining = Math.max(0, remaining - (performance.now() - startedAt));
+        clearTimeout(timer); timer = null;
+    };
+    const startTimer = () => {
+        if (timer || kind === 'error' || toast.matches(':hover') || toast.contains(document.activeElement)) return;
+        startedAt = performance.now();
+        countdown?.play();
+        timer = setTimeout(remove, remaining);
+    };
+    dismiss.addEventListener('click', remove);
+    toast.addEventListener('mouseenter', pauseTimer);
+    toast.addEventListener('mouseleave', startTimer);
+    toast.addEventListener('focusin', pauseTimer);
+    toast.addEventListener('focusout', () => setTimeout(startTimer, 0));
+    content.append(heading, text);
+    toast.append(icon, content, dismiss, progress);
+    region.append(toast);
+    startTimer();
+};
 document.querySelectorAll('select').forEach((select) => {
     const sizePicker = () => {
         const rect = select.getBoundingClientRect();
@@ -49,25 +129,55 @@ if (errorNotice) {
     errorNotice.focus();
 }
 const menuButton = document.querySelector('.menu-toggle');
-const navigation = document.getElementById('main-navigation');
+const navigation = document.getElementById(menuButton?.getAttribute('aria-controls') || 'main-navigation');
 if (menuButton && navigation) {
+    const fullscreenSidebar = navigation.matches('.customer-sidebar, .admin-sidebar');
+    let backgroundState = [];
     const closeMenu = () => {
         navigation.classList.remove('is-open');
         menuButton.setAttribute('aria-expanded', 'false');
+        menuButton.setAttribute('aria-label', 'Open navigation');
+        if (fullscreenSidebar) {
+            document.body.classList.remove('navigation-open');
+            navigation.removeAttribute('role');
+            navigation.removeAttribute('aria-modal');
+            backgroundState.forEach(([element, wasInert]) => { element.inert = wasInert; });
+            backgroundState = [];
+        }
     };
     menuButton.addEventListener('click', () => {
-        const open = navigation.classList.toggle('is-open');
-        menuButton.setAttribute('aria-expanded', String(open));
+        if (navigation.classList.contains('is-open')) { closeMenu(); return; }
+        navigation.classList.add('is-open');
+        menuButton.setAttribute('aria-expanded', 'true');
+        menuButton.setAttribute('aria-label', 'Close navigation');
+        if (fullscreenSidebar && window.matchMedia('(max-width: 800px)').matches) {
+            document.body.classList.add('navigation-open');
+            navigation.setAttribute('role', 'dialog');
+            navigation.setAttribute('aria-modal', 'true');
+            backgroundState = [...document.querySelectorAll('.site-header, .app-main, .site-footer, .mobile-quick-nav, .back-to-top, .skip-link, .toast-region')].map(element => [element, element.inert]);
+            backgroundState.forEach(([element]) => { element.inert = true; });
+            navigation.querySelector('.sidebar-close')?.focus();
+        }
     });
+    navigation.querySelector('.sidebar-close')?.addEventListener('click', () => { closeMenu(); menuButton.focus(); });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && navigation.classList.contains('is-open')) {
+            if (document.querySelector('.confirmation-dialog[open]')) return;
+            event.preventDefault();
             closeMenu();
             menuButton.focus();
         }
+        if (event.key === 'Tab' && fullscreenSidebar && document.body.classList.contains('navigation-open') && !document.querySelector('.confirmation-dialog[open]')) {
+            const controls = [...navigation.querySelectorAll('a, button')].filter(element => element.getClientRects().length && !element.disabled);
+            const first = controls[0], last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }
     });
     document.addEventListener('click', (event) => {
-        if (!event.target.closest('.header-inner')) closeMenu();
+        if (!event.target.closest('.header-inner') && !navigation.contains(event.target)) closeMenu();
     });
+    window.matchMedia('(max-width: 800px)').addEventListener('change', () => { closeMenu(); });
 }
 
 const confirmationDialog = document.getElementById('confirmation-dialog');
@@ -161,6 +271,7 @@ document.querySelectorAll('form').forEach((form) => {
     form.addEventListener('invalid', (event) => {
         event.target.setAttribute('aria-invalid', 'true');
         announce('Please check the highlighted fields before continuing.');
+        showToast('Please check the highlighted fields before continuing.', 'error');
     }, true);
     form.addEventListener('input', (event) => {
         if (event.target.validity?.valid) event.target.removeAttribute('aria-invalid');
@@ -224,8 +335,11 @@ document.querySelectorAll('.page-auth input[type="password"]').forEach((input) =
     wrapper.append(toggle);
 });
 
-const authAlert = document.querySelector('[data-auth-alert]');
-if (authAlert) askConfirmation(authAlert.textContent.trim(), 'Continue', false, authAlert.dataset.authAlert);
+document.querySelectorAll('[data-toast], .notice.error[role="alert"], .notice.success[role="status"]').forEach(notice => {
+    const kind = notice.dataset.toast || (notice.classList.contains('error') ? 'error' : 'success');
+    showToast(notice.textContent.trim(), kind);
+    notice.dataset.toastShown = 'true';
+});
 
 window.addEventListener('pageshow', () => {
     leavingPage = false;

@@ -74,24 +74,15 @@ final class AuthController extends Controller
         $this->redirect('/login');
     }
 
-    public function customerLoginForm(): void
+    public function loginForm(): void
     {
-        $this->loginForm('customer');
+        $this->requireGuest();
+        $this->render('auth/login', ['title' => 'Log in']);
     }
 
-    public function adminLoginForm(): void
+    public function legacyLogin(): void
     {
-        $this->loginForm('admin');
-    }
-
-    public function customerLogin(): void
-    {
-        $this->login('customer');
-    }
-
-    public function adminLogin(): void
-    {
-        $this->login('admin');
+        $this->redirect('/login');
     }
 
     public function customerLogout(): void
@@ -104,13 +95,7 @@ final class AuthController extends Controller
         $this->logout('admin');
     }
 
-    private function loginForm(string $role): void
-    {
-        $this->requireGuest();
-        $this->render('auth/login', ['title' => $role === 'admin' ? 'Admin login' : 'Customer login', 'role' => $role]);
-    }
-
-    private function login(string $role): void
+    public function login(): void
     {
         $this->requireGuest();
         $this->requireCsrf();
@@ -122,18 +107,17 @@ final class AuthController extends Controller
             $user = (new User())->findByEmail($email);
         }
         if (!$user || !password_verify($password, $user['password_hash'])
-            || $user['role'] !== $role || $user['status'] !== 'active') {
+            || !in_array($user['role'], ['customer', 'admin'], true) || $user['status'] !== 'active') {
             http_response_code(422);
             $this->render('auth/login', [
-                'title' => $role === 'admin' ? 'Admin login' : 'Customer login',
-                'role' => $role,
-                'error' => 'Invalid email or password for this login.',
+                'title' => 'Log in',
+                'error' => 'Invalid email or password.',
                 'email' => $email,
             ]);
             return;
         }
         Auth::login($user);
-        Session::flash('Welcome back. You are now logged in.', true);
+        Session::flash('Welcome back, ' . $user['name'] . '.', true);
         $this->redirect(Auth::home($user));
     }
 
@@ -146,7 +130,7 @@ final class AuthController extends Controller
         session_id('');
         Session::start();
         Session::flash('You have been logged out successfully.', true);
-        $this->redirect($role === 'admin' ? '/admin/login' : '/login');
+        $this->redirect('/login');
     }
 
     private function input(string $key): string

@@ -7,4 +7,4 @@
     <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">
     <label for="reason">Cancellation reason <span class="muted">(optional)</span></label><textarea id="reason" name="reason" rows="4" maxlength="1000" aria-describedby="reason-help"><?= $escape($data['reason']) ?></textarea><small id="reason-help">Up to 1000 characters.</small>
     <button class="button-danger" type="submit">Confirm cancellation request</button>
-</form><p><a href="/bookings/show?id=<?= (int) $booking['id'] ?>">Keep booking / return to summary</a></p>
+</form><p><a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Keep booking / return to summary</a></p>

@@ -23,7 +23,7 @@ abstract class Controller
     {
         $user = Auth::user();
         if (!$user) {
-            $this->redirect($role === 'admin' ? '/admin/login' : '/login');
+            $this->redirect('/login');
         }
         if ($user['role'] !== $role) {
             http_response_code(403);

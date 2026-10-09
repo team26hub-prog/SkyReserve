@@ -60,7 +60,7 @@ try {
     $rejectTicket = (new Ticket())->generate($reject['booking'], ['id' => $users['customer']])[0];
     $failureTicket = (new Ticket())->generate($failure['booking'], ['id' => $users['customer']])[0];
     $guest = $client(); $customer = $client(); $other = $client(); $admin = $client();
-    foreach ([[$customer,'customer','/login'],[$other,'other','/login'],[$admin,'admin','/admin/login']] as [$handle,$role,$login]) { $form = $request($handle,'GET',$login); $assert($request($handle,'POST',$login,['_token' => $token($form),'email' => $emails[$role],'password' => $password])['status'] === 303,'fixture ' . $role . ' login'); }
+    foreach ([[$customer,'customer','/login'],[$other,'other','/login'],[$admin,'admin','/login']] as [$handle,$role,$login]) { $form = $request($handle,'GET',$login); $assert($request($handle,'POST',$login,['_token' => $token($form),'email' => $emails[$role],'password' => $password])['status'] === 303,'fixture ' . $role . ' login'); }
     $csrf = $token($request($customer,'GET','/profile')); $otherCsrf = $token($request($other,'GET','/profile')); $adminCsrf = $token($request($admin,'GET','/admin'));
     $list = $request($customer,'GET','/bookings');
     $assert($list['status'] === 200 && str_contains($list['body'],'M11-YES-' . $suffix) && !str_contains($list['body'],'M11-OTHER-' . $suffix),'My Bookings contains only current customer records');

@@ -23,4 +23,4 @@
     <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" value="<?= $escape($values['phone'] ?? '') ?>" required>
     <button type="submit">Create booking</button>
 </form>
-<p><a href="/flights/show?id=<?= (int) $flight['id'] ?>">Return to flight details</a></p>
+<p><a class="button button-secondary" href="/flights/show?id=<?= (int) $flight['id'] ?>">Return to flight details</a></p>

@@ -13,6 +13,6 @@ final class AdminController extends Controller
     {
         $this->requireRole('admin');
         $metrics = (new AdminReport())->dashboard();
-        $this->render('admin/index', ['title' => 'Admin area', 'wide' => true, 'metrics' => $metrics, 'pendingPayments' => $metrics['pending_payments'], 'pendingCancellations' => $metrics['pending_cancellations']]);
+        $this->render('admin/index', ['title' => 'Admin panel', 'wide' => true, 'metrics' => $metrics, 'pendingPayments' => $metrics['pending_payments'], 'pendingCancellations' => $metrics['pending_cancellations']]);
     }
 }

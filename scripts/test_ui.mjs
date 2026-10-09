@@ -86,12 +86,17 @@ const checkPages = async (pages, group) => {
             assert(!result.overflow, `${name} overflows at ${width}px`);
             assert(!result.unlabeled.length && !result.duplicateIds && result.headings === 1 && result.landmark, `${name} semantic/label issue: ${JSON.stringify(result)}`);
             assert(!result.contrastIssues.length, `${name} contrast issues: ${JSON.stringify(result.contrastIssues)}`);
+            if (group === 'customer') {
+                assert(await evaluate(`!document.querySelector('.site-footer')`), `${name} omits the customer footer`);
+                assert(await evaluate(`[...document.querySelectorAll('.app-main .actions a')].every(link => link.classList.contains('button') && link.getBoundingClientRect().height >= 44 && getComputedStyle(link).textDecorationLine === 'none')`), `${name} presents action links as consistent touch-friendly buttons`);
+            }
             if (['search', 'search-results'].includes(name) && width <= 800) {
                 assert(await evaluate(`(() => { const hero = document.querySelector('.search-hero').getBoundingClientRect(); const form = document.querySelector('.search-form').getBoundingClientRect(); return hero.bottom + 8 <= form.top && [...document.querySelectorAll('.search-form input, .search-form select, .search-form button')].every(control => { const rect = control.getBoundingClientRect(); return rect.left >= form.left && rect.right <= form.right + 1; }); })()`), `${name} hero and form controls do not overlap at ${width}px`);
             }
             if (width <= 800) {
-                assert(await evaluate(`(() => { const brand = document.querySelector('.site-header .brand').getBoundingClientRect(); const menu = document.querySelector('.menu-toggle').getBoundingClientRect(); return brand.right <= menu.left && Math.abs(brand.top + brand.height / 2 - menu.top - menu.height / 2) < 1; })()`), `${name} mobile branding and menu fit one row at ${width}px`);
-                assert(await evaluate(`(() => { const nav = document.querySelector('.mobile-quick-nav'); const rect = nav.getBoundingClientRect(); return getComputedStyle(nav).position === 'fixed' && Math.abs(rect.bottom - innerHeight) < 1 && nav.querySelectorAll('a').length === 4 && [...nav.querySelectorAll('a')].every(link => link.getBoundingClientRect().height >= 44) && parseFloat(getComputedStyle(document.body).paddingBottom) >= rect.height; })()`), `${name} quick navigation stays at bottom with tap targets and reserved space at ${width}px`);
+                assert(await evaluate(`(() => { const brand = document.querySelector('.site-header .brand').getBoundingClientRect(); const button = document.querySelector('.menu-toggle'); const menu = button.getBoundingClientRect(); return menu.right <= brand.left && Math.abs(brand.top + brand.height / 2 - menu.top - menu.height / 2) < 1 && !button.textContent.trim() && !!button.getAttribute('aria-label'); })()`), `${name} icon-only hamburger sits left of the brand at ${width}px`);
+                assert(await evaluate(`(() => { const nav = document.querySelector('.mobile-quick-nav'); const rect = nav.getBoundingClientRect(); const expected = document.querySelector('.customer-sidebar') || nav.querySelector('a[href="/admin/airports"]') ? 7 : 4; return getComputedStyle(nav).position === 'fixed' && Math.abs(rect.bottom - innerHeight) < 1 && nav.querySelectorAll('a').length === expected && [...nav.querySelectorAll('a')].every(link => link.getBoundingClientRect().height >= 44 && !link.textContent.trim() && !!link.getAttribute('aria-label')) && parseFloat(getComputedStyle(document.body).paddingBottom) >= rect.height; })()`), `${name} icon-only quick navigation stays at bottom with accessible tap targets at ${width}px`);
+                assert(await evaluate(`!document.body.classList.contains('customer-layout') || (getComputedStyle(document.querySelector('.header-account-name')).display === 'none' && document.querySelector('.header-account .avatar').getBoundingClientRect().right <= innerWidth)`), `${name} mobile customer header shows only the avatar`);
             } else {
                 assert(await evaluate(`getComputedStyle(document.querySelector('.mobile-quick-nav')).display === 'none'`), `${name} hides mobile quick navigation on desktop`);
             }
@@ -104,18 +109,27 @@ const checkPages = async (pages, group) => {
     }
 };
 const signIn = async (role) => {
-    await visit(role === 'admin' ? '/admin/login' : '/login');
+    await visit('/login');
     await evaluate(`document.getElementById('email').value = ${JSON.stringify(fixture[role + 'Email'])}; document.getElementById('password').value = ${JSON.stringify(fixture.password)}; document.querySelector('.account-form').requestSubmit(); true`);
     await ready(role === 'admin' ? '/admin' : '/');
-    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'success'`), 'Login shows an authenticated success alert');
-    await respondToConfirmation();
+    assert(await evaluate(`!!document.querySelector('.toast[data-kind="success"]') && !document.querySelector('#confirmation-dialog').open`), 'Login shows a nonblocking success toast');
+    assert(await evaluate(`(() => { const toast = document.querySelector('.toast[data-kind="success"]'); const bounds = toast.getBoundingClientRect(); return toast.querySelector('.toast-title').textContent === 'Signed in' && toast.querySelector('.toast-message').textContent.includes('Welcome back,') && !!toast.querySelector('.toast-icon svg circle') && !toast.querySelector('.toast-progress').hidden && bounds.left >= 0 && bounds.right <= innerWidth && (innerWidth > 800 ? bounds.top < 32 : bounds.bottom < document.querySelector('.mobile-quick-nav').getBoundingClientRect().top); })()`), 'Sign-in toast matches the reference card and stays inside responsive screen bounds');
+    await pause(250);
+    const toastWidth = await evaluate('innerWidth');
+    const toastScreenshot = await command('Page.captureScreenshot', { captureBeyondViewport: false });
+    writeFileSync(join(artifacts, `${role}-signin-toast-${toastWidth}.png`), Buffer.from(toastScreenshot.data, 'base64'));
+    await command('Emulation.setFocusEmulationEnabled', { enabled: true });
+    await evaluate(`document.querySelector('.toast-dismiss').focus(); true`); await pause(80);
+    const toastFocusState = await evaluate(`({focus:document.querySelector('.toast').contains(document.activeElement),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,animations:document.querySelector('.toast-progress span').getAnimations().map(animation=>animation.playState)})`);
+    assert(toastFocusState.focus && (toastFocusState.reduced ? toastFocusState.animations.length === 0 : toastFocusState.animations[0] === 'paused'), 'Toast countdown pauses on focus and respects reduced motion');
+    await evaluate(`document.querySelector('.brand').focus(); true`); await pause(50);
+    assert(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches || document.querySelector('.toast-progress span').getAnimations()[0].playState === 'running'`), 'Toast countdown resumes after focus leaves');
 };
 const signOut = async (role) => {
     await evaluate(`document.querySelector('.logout-form').requestSubmit(); true`);
     await respondToConfirmation();
-    await ready(role === 'admin' ? '/admin/login' : '/login');
-    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'success'`), 'Logout shows a one-time success alert');
-    await respondToConfirmation();
+    await ready('/login');
+    assert(await evaluate(`!!document.querySelector('.toast[data-kind="success"]') && !document.querySelector('#confirmation-dialog').open`), 'Logout shows a one-time success toast');
 };
 try {
     let targets;
@@ -138,32 +152,39 @@ try {
     await command('Page.enable');
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
     const search = `/flights?from_airport_id=${fixture.from}&to_airport_id=${fixture.to}&travel_date=${fixture.date}`;
-    await checkPages([['home', '/'], ['search', '/flights'], ['search-results', search], ['login', '/login'], ['register', '/register'], ['admin-login', '/admin/login'], ['flight-details', `/flights/show?id=${fixture.flightId}`]], 'guest');
+    await checkPages([['home', '/'], ['search', '/flights'], ['search-results', search], ['login', '/login'], ['register', '/register'], ['flight-details', `/flights/show?id=${fixture.flightId}`]], 'guest');
+    await command('Page.navigate', { url: new URL('/admin/login', base).href });
+    await ready('/login');
+    assert(await evaluate(`document.querySelector('.account-form').getAttribute('action') === '/login' && !document.querySelector('a[href="/admin/login"]')`), 'Legacy admin URL reaches the shared login form');
     await visit('/register');
     assert(await evaluate(`(() => { document.querySelector('#password').value = 'Visibility-Test-123'; const toggle = document.querySelector('[aria-controls="password"]'); toggle.click(); const shown = document.querySelector('#password').type === 'text' && toggle.getAttribute('aria-pressed') === 'true' && document.querySelector('#password_confirmation').type === 'password'; toggle.click(); return shown && document.querySelector('#password').type === 'password' && document.querySelector('#password').value === 'Visibility-Test-123'; })()`), 'Registration eye toggle preserves values and operates independently');
     assert(await evaluate(`(() => { const toggle = document.querySelector('[aria-controls="password_confirmation"]'); toggle.click(); const shown = document.querySelector('#password_confirmation').type === 'text'; toggle.click(); return shown && document.querySelector('#password_confirmation').type === 'password'; })()`), 'Confirmation password has its own visibility toggle');
     fixture.registeredEmail = fixture.customerEmail.replace('ui-customer-', 'ui-registered-');
     await evaluate(`document.querySelector('#name').value = 'UI Registration Check'; document.querySelector('#email').value = ${JSON.stringify(fixture.registeredEmail)}; document.querySelector('#password').value = ${JSON.stringify(fixture.password)}; document.querySelector('#password_confirmation').value = ${JSON.stringify(fixture.password)}; document.querySelector('.account-form').requestSubmit(); true`);
     await ready('/login');
-    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'success' && document.querySelector('#confirmation-message').textContent.includes('Account created')`), 'Successful registration displays a success dialog');
-    await respondToConfirmation();
+    assert(await evaluate(`document.querySelector('.toast[data-kind="success"]').textContent.includes('Account created') && !document.querySelector('#confirmation-dialog').open`), 'Successful registration displays a success toast');
     assert(await evaluate(`(() => { const toggle = document.querySelector('[aria-controls="password"]'); toggle.click(); const shown = document.querySelector('#password').type === 'text'; toggle.click(); return shown && document.querySelector('#password').type === 'password'; })()`), 'Login eye toggle reveals and conceals the password');
     await evaluate(`document.querySelector('#email').value = ${JSON.stringify(fixture.customerEmail)}; document.querySelector('#password').value = 'Wrong-Password'; document.querySelector('.account-form').requestSubmit(); true`);
     await pause(400); await ready('/login');
-    assert(await evaluate(`document.querySelector('#confirmation-dialog').dataset.kind === 'error' && document.querySelector('#confirmation-message').textContent.includes('Invalid email or password')`), 'Invalid login displays a generic error dialog');
-    await respondToConfirmation();
+    assert(await evaluate(`document.querySelector('.toast[data-kind="error"]').textContent.includes('Invalid email or password') && !document.querySelector('#confirmation-dialog').open`), 'Invalid login displays a generic error toast');
+    await evaluate(`document.querySelector('.toast-dismiss').click(); true`);
+    assert(await evaluate(`!document.querySelector('.toast')`), 'Toast dismiss button removes the notification');
     await visit('/');
     assert(await evaluate(`document.querySelector('.mobile-quick-nav a[aria-current="page"]').getAttribute('href') === '/' && document.querySelector('.mobile-quick-nav a[aria-label="Log in to view your bookings"]').getAttribute('href') === '/login'`), 'Guest quick navigation protects account destinations and marks Home active');
-    assert(await evaluate(`document.querySelectorAll('[data-upcoming-flight]').length <= 6 && document.querySelector('.home-final-cta a[href="/login"]') !== null && document.querySelectorAll('.benefit-card').length === 4 && document.querySelectorAll('.booking-journey li').length === 6`), 'Guest homepage sections and Login CTA render');
-    const emptyHomepage = execFileSync(php, [fixtureScript, '--home-empty'], {encoding: 'utf8'});
+    assert(await evaluate(`!document.querySelector('#upcoming-title') && !document.querySelector('[data-upcoming-flight]') && document.querySelector('.home-final-cta a[href="/login"]') !== null && document.querySelectorAll('.benefit-card').length === 4 && document.querySelectorAll('.booking-journey li').length === 6`), 'Guest Home keeps welcome and overview without upcoming flights');
+    await visit('/flights');
+    assert(await evaluate(`!!document.querySelector('#upcoming-title') && !document.querySelector('.flight-results') && !document.querySelector('.search-form button') && document.querySelectorAll('[data-upcoming-flight]').length <= 6`), 'Search page initially displays upcoming flights without a submit button');
+    for (const emptyMode of ['--search-empty', '--search-empty-customer']) {
+    const emptyHomepage = execFileSync(php, [fixtureScript, emptyMode], {encoding: 'utf8'});
     const homeFrame = await command('Page.getFrameTree');
     await command('Page.setDocumentContent', {frameId: homeFrame.frameTree.frame.id, html: emptyHomepage});
     await pause(150);
     for (const width of [375, 768, 1440]) {
         await command('Emulation.setDeviceMetricsOverride', {width, height:1000, deviceScaleFactor:1, mobile:false});
         const result = await evaluate(`(${audit.toString()})()`);
-        assert(!result.overflow && !result.unlabeled.length && !result.duplicateIds && !result.contrastIssues.length && result.headings === 1, `Empty-flight homepage is accessible and responsive at ${width}px`);
+        assert(!result.overflow && !result.unlabeled.length && !result.duplicateIds && !result.contrastIssues.length && result.headings === 1, `Empty-flight search is accessible and responsive for ${emptyMode} at ${width}px`);
         assert(await evaluate(`!!document.querySelector('[data-upcoming-empty]') && !document.querySelector('[data-upcoming-flight]')`), 'Empty state replaces flight cards');
+    }
     }
     await visit('/flights');
     await evaluate(`document.querySelector('#from_airport_id').value = '${fixture.from}'; document.querySelector('#from_airport_id').dispatchEvent(new Event('change', {bubbles:true})); true`);
@@ -172,6 +193,7 @@ try {
     await evaluate(`document.querySelector('#to_airport_id').value = '${fixture.to}'; document.querySelector('#travel_date').value = '${fixture.date}'; document.querySelector('#travel_date').dispatchEvent(new Event('change', {bubbles:true})); true`);
     await pause(650); await ready('/flights');
     assert(await evaluate(`new URL(location.href).searchParams.get('from_airport_id') === '${fixture.from}' && document.querySelector('.flight-results') !== null`), 'Valid flight filters refresh automatically without pressing Search');
+    assert(await evaluate(`!document.querySelector('#upcoming-title') && !document.querySelector('[data-upcoming-flight]')`), 'Submitted search displays results instead of upcoming flights');
     await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await visit('/login');
     assert(await evaluate(`getComputedStyle(document.querySelector('.main-nav')).display === 'none'`), 'Mobile menu starts collapsed');
@@ -183,6 +205,33 @@ try {
     await respondToConfirmation(false);
     assert(await evaluate(`!!document.querySelector('.logout-form') && location.pathname === '/'`), 'Dismissing logout confirmation keeps the customer signed in on home');
     await checkPages([['home-customer', '/']], 'customer');
+    assert(await evaluate(`!document.querySelector('#upcoming-title')`), 'Customer Home omits upcoming flights');
+    await checkPages([['customer-search', '/flights'], ['customer-search-results', search]], 'customer');
+    await visit('/flights');
+    assert(await evaluate(`!!document.querySelector('#upcoming-title') && !document.querySelector('.search-form button')`), 'Customer search initially shows upcoming flights and filters automatically');
+    await visit('/');
+    const journeyDestinations = ['/flights', '/bookings', '/bookings?section=seats', '/bookings?section=payments', '/bookings?section=payments&status=payment_submitted', '/bookings?section=tickets'];
+    for (const [index, destination] of journeyDestinations.entries()) {
+        await visit('/');
+        await evaluate(`document.querySelectorAll('.booking-journey li > a')[${index}].click(); true`);
+        await ready(destination);
+        assert(await evaluate(`location.pathname + location.search === ${JSON.stringify(destination)} && !!document.querySelector('h1')`), `Booking journey step ${index + 1} opens its corresponding feature`);
+    }
+    await visit('/');
+    assert(await evaluate(`document.querySelectorAll('.customer-nav a').length === 7 && !document.querySelector('.site-header .logout-form') && !!document.querySelector('.customer-sidebar .logout-form[action="/logout"]') && !!document.querySelector('.site-header .header-account .avatar') && !document.querySelector('.site-header .main-nav > a')`), 'Customer navigation moves to sidebar with logout and header identity');
+    await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    assert(await evaluate(`document.querySelector('.menu-toggle').click(); getComputedStyle(document.querySelector('.customer-sidebar')).display !== 'none' && document.querySelector('.menu-toggle').getAttribute('aria-expanded') === 'true'`), 'Mobile customer menu opens the sidebar');
+    assert(await evaluate(`(() => { const sidebar = document.querySelector('.customer-sidebar'); const rect = sidebar.getBoundingClientRect(); return rect.top === 0 && rect.left === 0 && Math.abs(rect.bottom - innerHeight) < 1 && Math.abs(rect.right - innerWidth) < 1 && getComputedStyle(document.body).overflow === 'hidden' && document.querySelector('.app-main').inert && document.querySelector('.site-header').inert && document.activeElement === document.querySelector('.sidebar-close'); })()`), 'Customer menu covers full viewport, locks page scrolling and focuses its close control');
+    assert(await evaluate(`document.querySelector('.sidebar-close').click(); !document.querySelector('.app-main').inert && document.activeElement === document.querySelector('.menu-toggle') && getComputedStyle(document.querySelector('.customer-sidebar')).display === 'none'`), 'Close icon restores background interaction and hamburger focus');
+    await evaluate(`document.querySelector('.menu-toggle').click(); true`);
+    const menuScreenshot = await command('Page.captureScreenshot', { captureBeyondViewport: false });
+    writeFileSync(join(artifacts, 'customer-fullscreen-menu-375.png'), Buffer.from(menuScreenshot.data, 'base64'));
+    assert(await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); getComputedStyle(document.querySelector('.customer-sidebar')).display === 'none'`), 'Escape closes the mobile customer sidebar');
+    await checkPages([['customer-seats', '/bookings?section=seats'], ['customer-payments', '/bookings?section=payments'], ['customer-tickets', '/bookings?section=tickets']], 'customer');
+    for (const section of ['seats', 'payments', 'tickets']) {
+        await visit('/bookings?section=' + section);
+        assert(await evaluate(`document.querySelector('.customer-nav a[aria-current="page"]').href.endsWith('section=${section}') && [...document.querySelectorAll('.filter-tabs a')].every(link => new URL(link.href).searchParams.get('section') === '${section}')`), `Customer ${section} section remains selected when filtering`);
+    }
     await evaluate(`document.querySelector('.mobile-quick-nav a[href="/profile"]').click(); true`);
     await ready('/profile');
     assert(await evaluate(`document.querySelector('.mobile-quick-nav a[aria-current="page"]').getAttribute('href') === '/profile'`), 'Customer quick Profile link reaches the existing profile route');
@@ -208,7 +257,7 @@ try {
     await signOut('customer');
     await signIn('admin');
     await checkPages([['home-admin', '/']], 'admin');
-    assert(await evaluate(`!!document.querySelector('.mobile-quick-nav a[href="/admin"]') && !!document.querySelector('.mobile-quick-nav a[href="/admin/reports"]') && !document.querySelector('.mobile-quick-nav a[href="/profile"], .mobile-quick-nav a[href="/bookings"]')`), 'Admin quick navigation uses authorized admin destinations');
+    assert(await evaluate(`document.querySelectorAll('.mobile-quick-nav a').length === 7 && [...document.querySelectorAll('.mobile-quick-nav a')].every(link => new URL(link.href).pathname.startsWith('/admin'))`), 'Admin quick navigation contains every admin feature and no general destinations');
     assert(await evaluate(`!!document.querySelector('.home-final-cta a[href="/admin"]') && !document.querySelector('.home-final-cta a[href="/bookings"]')`), 'Admin homepage links to its authorized dashboard');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 800, deviceScaleFactor: 1, mobile: false });
     await visit('/admin');
@@ -217,13 +266,18 @@ try {
     await evaluate(`window.scrollTo({top: 500, behavior: 'instant'}); true`); await pause(100);
     assert(await evaluate(`scrollY > 0 && Math.abs(document.querySelector('.site-header').getBoundingClientRect().top) < 1`), 'Navbar remains at viewport top after scrolling');
     assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).position === 'fixed' && Math.abs(document.querySelector('.admin-sidebar').getBoundingClientRect().top - ${sidebarTop}) < 1`), 'Desktop sidebar remains fixed after page scrolling');
-    assert(await evaluate(`document.querySelector('.footer-links a[href="/admin/reports"]') !== null && document.querySelector('.back-to-top').getAttribute('href') === '#page-top'`), 'Footer offers authorized report navigation and back-to-top link');
+    assert(await evaluate(`!document.querySelector('.site-footer') && document.querySelector('.back-to-top').getAttribute('href') === '#page-top' && document.querySelector('.back-to-top').getAttribute('aria-label') === 'Back to top' && !!document.querySelector('.back-to-top svg')`), 'Admin panel omits footer and provides an accessible back-to-top icon');
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     await evaluate(`document.querySelector('.back-to-top').click(); true`); await pause(100);
     assert(await evaluate(`scrollY === 0`), 'Back-to-top link returns to page start with reduced motion');
     await command('Emulation.setEmulatedMedia', { features: [] });
     await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: false });
-    assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).position === 'static'`), 'Mobile sidebar reflows without obscuring page content');
+    assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).display === 'none' && getComputedStyle(document.querySelector('.header-account')).display !== 'none' && getComputedStyle(document.querySelector('.header-account-name')).display === 'none' && Math.abs(document.querySelector('.brand').getBoundingClientRect().left + document.querySelector('.brand').getBoundingClientRect().width / 2 - innerWidth / 2) < 5`), 'Admin mobile header centers brand and keeps avatar visible with menu collapsed');
+    await evaluate(`document.querySelector('.menu-toggle').click(); true`);
+    assert(await evaluate(`document.querySelector('.admin-sidebar').getBoundingClientRect().height === innerHeight && document.querySelector('.admin-sidebar .sidebar-logout').getBoundingClientRect().height > 0`), 'Admin mobile hamburger opens full-screen features and logout');
+    const adminMenuScreenshot = await command('Page.captureScreenshot', { captureBeyondViewport: false });
+    writeFileSync(join(artifacts, 'admin-fullscreen-menu-375.png'), Buffer.from(adminMenuScreenshot.data, 'base64'));
+    await evaluate(`document.querySelector('.admin-sidebar .sidebar-close').click(); true`);
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await checkPages([
         ['dashboard', '/admin'], ['airports', '/admin/airports'], ['airport-add', '/admin/airports/create'], ['airport-edit', `/admin/airports/edit?id=${fixture.from}`],

@@ -88,7 +88,7 @@ try {
         $userIds[$email] = (int) $db->lastInsertId();
     }
     $guest = $client(); $customer = $client(); $admin = $client(); $other = $client();
-    foreach ([[$customer, $customerEmail, '/login'], [$admin, $adminEmail, '/admin/login'], [$other, $otherEmail, '/login']] as [$handle, $email, $login]) {
+    foreach ([[$customer, $customerEmail, '/login'], [$admin, $adminEmail, '/login'], [$other, $otherEmail, '/login']] as [$handle, $email, $login]) {
         $form = $request($handle, 'GET', $login);
         $assert($request($handle, 'POST', $login, ['_token' => $token($form), 'email' => $email, 'password' => $password])['status'] === 303, 'fixture user signs in');
     }

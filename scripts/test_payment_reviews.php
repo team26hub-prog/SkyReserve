@@ -81,7 +81,7 @@ try {
     $verify = $makePayment('VERIFY', $receiptRelative); $reject = $makePayment('REJECT'); $optional = $makePayment('EMPTY'); $invalid = $makePayment('INVALID'); $failure = $makePayment('FAIL'); $race = $makePayment('RACE');
     $db->prepare("INSERT INTO booking_seats (booking_id, passenger_id, flight_id, aircraft_id, seat_id, status) VALUES (?, ?, ?, ?, ?, 'reserved')")->execute([$verify['booking'], $verify['passenger'], $flightId, $aircraftId, $seatId]);
     $guest = $client(); $admin = $client(); $customer = $client(); $other = $client();
-    foreach ([[$admin,'admin','/admin/login'], [$customer,'customer','/login'], [$other,'other','/login']] as [$handle,$role,$login]) {
+    foreach ([[$admin,'admin','/login'], [$customer,'customer','/login'], [$other,'other','/login']] as [$handle,$role,$login]) {
         $form = $request($handle, 'GET', $login);
         $assert($request($handle, 'POST', $login, ['_token' => $token($form), 'email' => $emails[$role], 'password' => $password])['status'] === 303, 'fixture ' . $role . ' login');
     }

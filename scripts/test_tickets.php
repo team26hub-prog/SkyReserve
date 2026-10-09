@@ -76,7 +76,7 @@ try {
     };
     $success = $make('OK', [$seats[0],$seats[1]]); $invalid = $make('INVALID', [$seats[2]]); $race = $make('RACE', [$seats[3]]); $adminFixture = $make('ADMIN', [$seats[4]]); $failure = $make('FAIL', [$seats[5],$seats[6]]);
     $guest = $client(); $customer = $client(); $other = $client(); $admin = $client();
-    foreach ([[$customer,'customer','/login'],[$other,'other','/login'],[$admin,'admin','/admin/login']] as [$handle,$role,$path]) {
+    foreach ([[$customer,'customer','/login'],[$other,'other','/login'],[$admin,'admin','/login']] as [$handle,$role,$path]) {
         $form = $request($handle, 'GET', $path);
         $assert($request($handle, 'POST', $path, ['_token' => $token($form), 'email' => $emails[$role], 'password' => $password])['status'] === 303, 'fixture ' . $role . ' login');
     }

@@ -41,7 +41,7 @@ final class FlightSearchController extends Controller
             }
         }
         $this->render('customer/flights/search', ['title' => 'Search flights', 'airports' => $airports, 'values' => $values, 'errors' => $errors,
-            'submitted' => $submitted, 'flights' => $flights, 'today' => gmdate('Y-m-d'), 'wide' => true]);
+            'submitted' => $submitted, 'flights' => $flights, 'upcomingFlights' => $submitted ? [] : (new Flight())->upcomingAvailable(), 'today' => gmdate('Y-m-d'), 'wide' => true]);
     }
 
     public function show(): void

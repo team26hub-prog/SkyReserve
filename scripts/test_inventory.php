@@ -111,8 +111,8 @@ try {
     $form = $request($customer, 'GET', '/login');
     $assert($request($customer, 'POST', '/login', ['_token' => $token($form), 'email' => $customerEmail, 'password' => $password])['status'] === 303, 'test customer signs in');
     $admin = $client();
-    $form = $request($admin, 'GET', '/admin/login');
-    $assert($request($admin, 'POST', '/admin/login', ['_token' => $token($form), 'email' => $adminEmail, 'password' => $password])['status'] === 303, 'test admin signs in');
+    $form = $request($admin, 'GET', '/login');
+    $assert($request($admin, 'POST', '/login', ['_token' => $token($form), 'email' => $adminEmail, 'password' => $password])['status'] === 303, 'test admin signs in');
     $csrf = $token($request($admin, 'GET', '/admin'));
 
     // Every Module 3 endpoint is checked before it can look up a record or mutate it.
@@ -120,7 +120,7 @@ try {
         foreach (['' => 'GET', '/create' => 'GET', '/edit' => 'GET', '/update' => 'POST', '/delete' => 'POST', '?store' => 'POST'] as $suffixPath => $method) {
             $path = '/admin/' . $resource . ($suffixPath === '?store' ? '' : $suffixPath) . '?id=1&aircraft_id=1';
             $response = $request($guest, $method, $path);
-            $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/admin/login', $method . ' guest denied: ' . $resource . ' ' . $suffixPath);
+            $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/login', $method . ' guest denied: ' . $resource . ' ' . $suffixPath);
             $assert($request($customer, $method, $path)['status'] === 403, $method . ' customer denied: ' . $resource . ' ' . $suffixPath);
         }
         foreach (['', '/update', '/delete'] as $action) {

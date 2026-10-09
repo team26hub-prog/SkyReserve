@@ -26,4 +26,4 @@
     </div><?php if (!$data['seats']): ?><p>No seats are configured for this aircraft.</p><?php endif; ?></fieldset>
     <button type="submit"<?= count($assigned) >= count($data['passengers']) ? ' disabled' : '' ?>>Save selected seat</button>
 </form>
-<p><a href="/bookings/show?id=<?= (int) $booking['id'] ?>">Return to booking summary</a></p>
+<p><a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Return to booking summary</a></p>

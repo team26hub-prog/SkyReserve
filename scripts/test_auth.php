@@ -124,7 +124,11 @@ try {
     $cookieForm = $request($guest, 'GET', '/register');
     $cookieHeader = strtolower($cookieForm['headers']['set-cookie'] ?? '');
     $assert($cookieForm['status'] === 200 && str_contains($cookieHeader, 'httponly') && str_contains($cookieHeader, 'samesite=lax'), 'session cookie uses HttpOnly and SameSite=Lax');
-    foreach (['/profile' => '/login', '/admin' => '/admin/login'] as $path => $loginPath) {
+    $home = $request($guest, 'GET', '/');
+    $assert($home['status'] === 200 && str_contains($home['body'], 'Your next journey.'), 'anonymous visitors can open the homepage without signing in');
+    $legacy = $request($guest, 'GET', '/admin/login');
+    $assert($legacy['status'] === 303 && ($legacy['headers']['location'] ?? '') === '/login', 'old admin login URL redirects to the shared page');
+    foreach (['/profile' => '/login', '/admin' => '/login'] as $path => $loginPath) {
         foreach (['GET', 'HEAD'] as $method) {
             $response = $request($guest, $method, $path);
             $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === $loginPath, $method . ' guest access to ' . $path . ' redirects to login');
@@ -186,23 +190,29 @@ try {
     $assert($request($guest, 'GET', '/profile')['status'] === 303, 'profile is protected after logout');
 
     $admin = $client();
-    $adminForm = $request($admin, 'GET', '/admin/login');
+    $adminForm = $request($admin, 'GET', '/login');
     $adminCsrf = $token($adminForm);
-    $assert($request($admin, 'POST', '/admin/login', ['_token' => $adminCsrf, 'email' => $customerEmail, 'password' => $password])['status'] === 422, 'customer credentials cannot use admin login');
+    $roleClaim = $client();
+    $roleClaimForm = $request($roleClaim, 'GET', '/login');
+    $response = $request($roleClaim, 'POST', '/login', ['_token' => $token($roleClaimForm), 'email' => $customerEmail, 'password' => $password, 'role' => 'admin']);
+    $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/', 'shared login uses stored customer role and ignores a submitted admin role');
+    $assert($request($roleClaim, 'GET', '/admin')['status'] === 403, 'shared login does not grant admin access to customers');
     $insert = $db->prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')");
     $insert->execute(['Auth test admin', $adminEmail, password_hash($password, PASSWORD_DEFAULT)]);
     $adminBefore = $sessionId($admin);
-    $assert($request($admin, 'POST', '/admin/login', ['_token' => $adminCsrf, 'email' => $adminEmail, 'password' => 'wrong-password'])['status'] === 422, 'invalid admin login fails');
-    $customerLoginForm = $request($guest, 'GET', '/login');
-    $assert($request($guest, 'POST', '/login', ['_token' => $token($customerLoginForm), 'email' => $adminEmail, 'password' => $password])['status'] === 422, 'admin credentials cannot use customer login');
-    $response = $request($admin, 'POST', '/admin/login', ['_token' => $adminCsrf, 'email' => $adminEmail, 'password' => $password]);
+    $assert($request($admin, 'POST', '/login', ['_token' => $adminCsrf, 'email' => $adminEmail, 'password' => 'wrong-password'])['status'] === 422, 'invalid admin login fails');
+    $sharedAdmin = $client();
+    $sharedAdminForm = $request($sharedAdmin, 'GET', '/login');
+    $response = $request($sharedAdmin, 'POST', '/login', ['_token' => $token($sharedAdminForm), 'email' => $adminEmail, 'password' => $password, 'role' => 'customer']);
+    $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/admin', 'same login page uses the stored admin role');
+    $response = $request($admin, 'POST', '/login', ['_token' => $adminCsrf, 'email' => $adminEmail, 'password' => $password]);
     $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/admin', 'admin login succeeds');
     $assert($adminBefore !== $sessionId($admin), 'session ID changes after admin login');
     $adminPage = $request($admin, 'GET', '/admin');
     $assert($adminPage['status'] === 200 && str_contains($adminPage['body'], $adminEmail), 'admin area accepts admin');
     $assert($request($admin, 'GET', '/profile')['status'] === 403, 'admin cannot access customer-only profile');
     $response = $request($admin, 'POST', '/admin/logout', ['_token' => $token($adminPage)]);
-    $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/admin/login', 'admin logout succeeds');
+    $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/login', 'admin logout succeeds');
     $assert($request($admin, 'GET', '/admin')['status'] === 303, 'admin area is protected after logout');
 
     $form = $request($guest, 'GET', '/login');

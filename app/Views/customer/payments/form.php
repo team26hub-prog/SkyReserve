@@ -34,4 +34,4 @@
     <small id="receipt-help">JPG, JPEG, PNG, or WEBP, up to 5 MB. Images must be no larger than 6000 pixels per side and 12 megapixels. After an error, select the receipt again.</small>
     <button type="submit">Submit payment for review</button>
 </form>
-<p><a href="/bookings/show?id=<?= (int) $booking['id'] ?>">Return to booking summary</a></p>
+<p><a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Return to booking summary</a></p>

@@ -1,4 +1,4 @@
-﻿# SkyReserve
+# SkyReserve
 
 SkyReserve is a single-airline ticketing and operations application built with **plain PHP, MySQL, HTML, CSS, and vanilla JavaScript**, using MVC. Its 12 core modules are complete. No frontend framework, Composer package, or build step is required.
 
@@ -117,9 +117,9 @@ try {
 }
 ```
 
-Passwords require at least eight characters and at most 72 bytes. Existing emails are refused. Sign in at `/admin/login`; customer registration always creates a customer.
+Passwords require at least eight characters and at most 72 bytes. Existing emails are refused. Sign in at `/login`; customer registration always creates a customer.
 
-Customer login redirects to the homepage; admin login opens the dashboard. Registration and login forms include password visibility toggles. Authentication results display one-time styled alerts, and logout asks for confirmation before ending the session.
+Both customers and administrators sign in at `/login`. The account's stored role sends customers to the homepage and admins to the dashboard. The old `/admin/login` URL redirects to `/login`. Visitors can browse the homepage and flight search without signing in; protected account pages require login. Registration and login forms include password visibility toggles. Authentication and saved-action results display responsive toast notifications. Success toasts dismiss automatically and pause while hovered or focused; error toasts remain until dismissed. Form errors also remain inline. Logout and destructive actions ask for confirmation before proceeding.
 
 ### Existing database upgrades
 
@@ -165,9 +165,9 @@ The UI uses the SkyReserve navy/orange/teal theme, responsive layouts, SVG sideb
 
 Shared Back/Cancel buttons link to explicit parent pages. Plain JavaScript provides SweetAlert-style confirmation dialogs for saves, submissions, destructive actions, and leaving edited forms. Dialogs support keyboard focus and Escape; older browsers use native confirmation. Reloading or closing a changed form uses the browser's unsaved-changes prompt. JavaScript confirmations supplement server-side validation, permissions, CSRF, and duplicate protection; they do not replace them.
 
-The homepage shows up to six upcoming flights using the same eligibility and seat-availability rules as customer search. It includes four service benefits, a six-step booking journey, an empty-flight state, and a final CTA tailored to guests, customers, and admins.
+The homepage focuses on welcome content, quick actions, service benefits, and the booking journey. Search Flights shows up to six upcoming flights below the search form before filters are submitted, using the existing eligibility and seat-availability rules. Submitted filters replace that preview with search results. Filters submit automatically with JavaScript; a search button remains available when JavaScript is disabled. The search page includes an empty-flight state for guests and customers.
 
-Mobile and tablet screens include fixed bottom quick navigation with active states and SVG icons. Customer links open Home, Flights, Bookings, and Profile; guests are directed to login for account actions, while admins see authorized dashboard/report links. Content spacing and iPhone safe-area padding keep the bar clear of page content; printing hides it.
+Mobile and tablet screens include fixed bottom navigation with active states and SVG icons. Customers have shortcuts for Home, Flights, Bookings, Seats, Payments, E-tickets, and Profile. Admin shortcuts cover Overview, Airports, Aircraft and seats, Flights, Payments, Cancellations, and Reports. Signed-in mobile headers show an initials avatar and a hamburger that opens full-screen navigation with logout. Content spacing and iPhone safe-area padding keep navigation and notifications clear of page content; printing hides them.
 
 ## Tests
 

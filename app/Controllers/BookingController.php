@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace App\Controllers;
 use App\Core\Controller;
+use App\Core\Session;
 use App\Models\Booking;
 use App\Models\Flight;
 use App\Models\Passenger;
@@ -18,7 +19,10 @@ final class BookingController extends Controller
     {
         $user = $this->requireRole('customer'); $status = $_GET['status'] ?? 'all'; $error = null;
         if (!is_string($status) || ($status !== 'all' && !isset(Booking::STATUSES[$status]))) { http_response_code(422); $status = 'all'; $error = 'Choose a valid booking status.'; }
-        $this->render('customer/bookings/index', ['title' => 'My Bookings', 'wide' => true, 'status' => $status, 'error' => $error, 'bookings' => (new Booking())->listForCustomer((int) $user['id'], $status)]);
+        $sections = ['bookings' => 'My Bookings', 'seats' => 'My seats', 'payments' => 'My payments', 'tickets' => 'My E-tickets'];
+        $section = $_GET['section'] ?? 'bookings';
+        if (!is_string($section) || !isset($sections[$section])) { http_response_code(422); $section = 'bookings'; $error = 'Choose a valid booking section.'; }
+        $this->render('customer/bookings/index', ['title' => $sections[$section], 'section' => $section, 'wide' => true, 'status' => $status, 'error' => $error, 'bookings' => (new Booking())->listForCustomer((int) $user['id'], $status)]);
     }
     public function create(): void
     {
@@ -67,6 +71,7 @@ final class BookingController extends Controller
         $values['document_number'] = $document;
         try { $id = $model->create((int) $user['id'], $flightId, $key, $values); }
         catch (DomainException) { $this->unavailable(); return; }
+        Session::flash('Booking created. Choose your seat and submit payment to continue.');
         $this->redirect('/bookings/show?id=' . $id);
     }
     public function show(): void

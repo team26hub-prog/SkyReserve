@@ -26,7 +26,7 @@ if ($name === '' || !mb_check_encoding($name, 'UTF-8') || mb_strlen($name) > 120
 try {
     $query = Database::connection()->prepare("INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, 'admin', 'active')");
     $query->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT)]);
-    echo 'Admin account created. Sign in at /admin/login.' . PHP_EOL;
+    echo 'Admin account created. Sign in at /login.' . PHP_EOL;
 } catch (PDOException $exception) {
     if ((int) ($exception->errorInfo[1] ?? 0) === 1062) {
         fwrite(STDERR, 'That email already exists. Existing accounts are not modified.' . PHP_EOL);

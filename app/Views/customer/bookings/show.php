@@ -21,12 +21,13 @@
         <dt>Phone</dt><dd><?= $escape($passenger['phone'] ?? '') ?></dd>
     </dl>
 <?php endforeach; ?>
-<p><a href="/flights">Search flights</a></p>
+<p><a class="button button-secondary" href="/flights">Search flights</a></p>
 <?php $withinDeadline = $booking['status'] === 'confirmed' || $booking['expires_at'] === null || $booking['expires_at'] > gmdate('Y-m-d H:i:s');
 $upcomingFlight = in_array($flight['status'], ['scheduled', 'delayed'], true) && $flight['departure_at'] > gmdate('Y-m-d H:i:s'); ?>
 <?php if ($withinDeadline && $upcomingFlight && in_array($booking['status'], ['pending', 'payment_submitted', 'confirmed'], true)): ?>
     <p><a class="button" href="/bookings/seats?booking_id=<?= (int) $booking['id'] ?>">View / select seats</a></p>
 <?php endif; ?>
+<div id="payment-details"></div>
 <?php if ($data['payments']): ?>
     <h2>Payment details</h2>
     <?php foreach ($data['payments'] as $payment): ?>
@@ -36,7 +37,7 @@ $upcomingFlight = in_array($flight['status'], ['scheduled', 'delayed'], true) &&
             <dt>Transaction reference</dt><dd><?= $escape($payment['transaction_reference'] ?? 'Not provided') ?></dd>
             <dt>Payment status</dt><dd><span class="badge" data-status="<?= $escape($payment['status']) ?>"><?= $escape(ucfirst($payment['status'])) ?></span></dd>
             <dt>Payment date (UTC)</dt><dd><?= $escape($payment['payment_date'] ?? 'Not provided') ?></dd>
-            <dt>Receipt</dt><dd><?php if ($payment['proof_path']): ?><a href="/payments/receipt?id=<?= (int) $payment['id'] ?>">View receipt</a><?php else: ?>No receipt uploaded<?php endif; ?></dd>
+            <dt>Receipt</dt><dd><?php if ($payment['proof_path']): ?><a class="button button-secondary" href="/payments/receipt?id=<?= (int) $payment['id'] ?>">View receipt</a><?php else: ?>No receipt uploaded<?php endif; ?></dd>
             <?php if ($payment['status'] === 'rejected' && $payment['review_notes']): ?><dt>Rejection reason</dt><dd><?= nl2br($escape($payment['review_notes'])) ?></dd><?php endif; ?>
         </dl>
     <?php endforeach; ?>
@@ -51,4 +52,4 @@ require BASE_PATH . '/app/Views/tickets/booking-links.php';
 ?>
 <?php require BASE_PATH . '/app/Views/customer/cancellations/history.php'; ?>
 <?php if (Cancellation::eligible($booking, $flight)): ?><p><a class="button button-danger" href="/bookings/cancel?booking_id=<?= (int) $booking['id'] ?>">Request cancellation</a></p><?php endif; ?>
-<p><a href="/bookings">Return to My Bookings</a></p>
+<p><a class="button button-secondary" href="/bookings">Return to My Bookings</a></p>

@@ -16,4 +16,4 @@
 <?php if (!$data['user'] || $data['user']['role'] === 'customer'): ?>
     <p><a class="button" href="/bookings/create?flight_id=<?= (int) $flight['id'] ?>"><?= $data['user'] ? 'Start booking' : 'Log in to start booking' ?></a></p>
 <?php endif; ?>
-<a href="<?= $escape($data['back']) ?>">Return to matching flights</a>
+<a class="button button-secondary" href="<?= $escape($data['back']) ?>">Return to matching flights</a>

@@ -86,14 +86,14 @@ try {
     $form = $request($customer, 'GET', '/login');
     $assert($request($customer, 'POST', '/login', ['_token' => $token($form), 'email' => $customerEmail, 'password' => $password])['status'] === 303, 'test customer signs in');
     $admin = $client();
-    $form = $request($admin, 'GET', '/admin/login');
-    $assert($request($admin, 'POST', '/admin/login', ['_token' => $token($form), 'email' => $adminEmail, 'password' => $password])['status'] === 303, 'test admin signs in');
+    $form = $request($admin, 'GET', '/login');
+    $assert($request($admin, 'POST', '/login', ['_token' => $token($form), 'email' => $adminEmail, 'password' => $password])['status'] === 303, 'test admin signs in');
     $csrf = $token($request($admin, 'GET', '/admin'));
 
     foreach ([['GET', ''], ['GET', '/create'], ['GET', '/edit'], ['GET', '/show'], ['POST', ''], ['POST', '/update'], ['POST', '/delete']] as [$method, $action]) {
         $path = '/admin/flights' . $action . '?id=1';
         $response = $request($guest, $method, $path);
-        $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/admin/login', $method . ' guest denied: ' . $action);
+        $assert($response['status'] === 303 && ($response['headers']['location'] ?? '') === '/login', $method . ' guest denied: ' . $action);
         $assert($request($customer, $method, $path)['status'] === 403, $method . ' customer denied: ' . $action);
     }
     $assert($request($customer, 'HEAD', '/admin/flights/show?id=1')['status'] === 403, 'HEAD cannot bypass admin guard');

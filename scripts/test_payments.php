@@ -90,7 +90,7 @@ try {
         return $id;
     };
     $guest = $client(); $customer = $client(); $other = $client(); $admin = $client();
-    foreach ([[$customer,'customer','/login'], [$other,'other','/login'], [$admin,'admin','/admin/login']] as [$handle,$role,$login]) {
+    foreach ([[$customer,'customer','/login'], [$other,'other','/login'], [$admin,'admin','/login']] as [$handle,$role,$login]) {
         $form = $request($handle, 'GET', $login);
         $assert($request($handle, 'POST', $login, ['_token' => $token($form), 'email' => $emails[$role], 'password' => $password])['status'] === 303, 'fixture ' . $role . ' login');
     }

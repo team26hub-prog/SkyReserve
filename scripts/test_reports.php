@@ -63,7 +63,7 @@ try {
     $expectedRevenue = $db->query("SELECT currency,SUM(amount) AS amount FROM payments WHERE status = 'verified' GROUP BY currency ORDER BY currency")->fetchAll();
     $assert($metrics['revenue'] === $expectedRevenue,'dashboard verified revenue uses exact decimal sums per currency including cancelled verified payments');
     $guest = $client(); $customer = $client(); $admin = $client();
-    foreach ([[$customer,'customer','/login'],[$admin,'admin','/admin/login']] as [$handle,$role,$login]) { $form = $request($handle,'GET',$login); $assert($request($handle,'POST',$login,['_token' => $token($form),'email' => $emails[$role],'password' => $password])['status'] === 303,'fixture ' . $role . ' login'); }
+    foreach ([[$customer,'customer','/login'],[$admin,'admin','/login']] as [$handle,$role,$login]) { $form = $request($handle,'GET',$login); $assert($request($handle,'POST',$login,['_token' => $token($form),'email' => $emails[$role],'password' => $password])['status'] === 303,'fixture ' . $role . ' login'); }
     $dashboard = $request($admin,'GET','/admin');
     foreach (['customers','flights','upcoming_flights','bookings','confirmed_bookings','pending_payments','pending_cancellations'] as $key) $assert(str_contains($dashboard['body'],'data-metric="' . $key . '">' . $metrics[$key] . '</strong>'),'dashboard renders accurate ' . $key);
     foreach ($expectedRevenue as $revenue) $assert(str_contains($dashboard['body'],$revenue['currency'] . ' ' . $revenue['amount']),'dashboard renders currency revenue: ' . $revenue['currency']);
