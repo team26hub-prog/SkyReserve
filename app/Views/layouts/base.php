@@ -34,7 +34,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="site-header">
         <div class="header-inner">
-            <a class="brand" href="/" aria-label="SkyReserve home"><span class="brand-logo" aria-hidden="true"><img src="/assets/images/skyreserve-logo.png" alt="" width="1254" height="1254" decoding="async"></span>Sky<span>Reserve</span></a>
+            <a class="brand" href="/" aria-label="SkyReserve home"><span class="brand-logo" aria-hidden="true"><img src="/assets/images/skyreserve-globe-logo.png" alt="" width="1254" height="1254" decoding="async"></span>Sky<span>Reserve</span></a>
             <button class="menu-toggle" type="button" aria-label="Open navigation" aria-controls="<?= $customerLayout ? 'customer-sidebar' : ($adminLayout ? 'admin-sidebar' : 'main-navigation') ?>" aria-expanded="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
             <nav id="main-navigation" class="main-nav" aria-label="Main navigation">
                 <?php if (!$adminLayout && !$customerLayout): ?>

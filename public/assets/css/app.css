@@ -56,8 +56,8 @@ button[aria-busy="true"]::before { content: ''; width: 1rem; height: 1rem; borde
 .brand { display: inline-flex; align-items: center; color: white; font-size: 1.45rem; font-weight: 800; letter-spacing: -.04em; text-decoration: none; white-space: nowrap; }
 .brand span:not(.brand-logo) { color: var(--orange); }
 .brand:hover { color: white; }
-.brand-logo { position: relative; display: inline-block; flex-shrink: 0; width: 64px; height: 44px; margin-right: .65rem; border-radius: 9px; background: #fff; overflow: hidden; }
-.brand-logo img { position: absolute; width: 96px; height: 96px; max-width: none; left: 50%; top: 50%; transform: translate(-50%, -48%); }
+.brand-logo { position: relative; display: inline-block; flex-shrink: 0; width: 50px; height: 45px; margin-right: .65rem; border-radius: 0px; background: #fff; overflow: hidden; }
+.brand-logo img { position: absolute; width: 55px; height: 55px; max-width: none; left: 50%; top: 50%; transform: translate(-52%, -50.5%); }
 .main-nav { display: flex; align-items: center; gap: 1.75rem; }
 .main-nav > a:not(.button) { color: #e0e9ef; text-decoration: none; font-size: .94rem; font-weight: 600; padding: .6rem 0; }
 .main-nav > a:not(.button):hover, .main-nav > a:not(.button)[aria-current] { color: var(--orange); }
@@ -76,7 +76,7 @@ button[aria-busy="true"]::before { content: ''; width: 1rem; height: 1rem; borde
 .page-home .app-main, .page-search .app-main { background: transparent; padding: 0; border: 0; box-shadow: none; }
 .page-auth .app-main { width: min(500px, 100%); }
 .eyebrow { display: block; color: var(--teal); font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .15em; margin-bottom: .9rem; }
-.hero { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 3rem; padding: clamp(1.5rem, 5vw, 4.5rem); border-radius: 24px; background-color: var(--navy); background-image: linear-gradient(90deg, rgb(3 37 57 / 96%) 0%, rgb(3 37 57 / 88%) 45%, rgb(3 37 57 / 35%) 100%), url('../images/home-hero-destination.png'); background-size: cover; background-position: center right; background-repeat: no-repeat; color: #d8e4ea; overflow: hidden; }
+.hero { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 3rem; padding: clamp(1.5rem, 5vw, 4.5rem); border-radius: 24px; background-color: var(--navy); background-image: linear-gradient(90deg, rgb(3 37 57 / 96%) 0%, rgb(3 37 57 / 88%) 45%, rgb(3 37 57 / 35%) 100%), url('../images/home-hero-destination.png'); background-size: cover, contain; background-position: center, right center; background-repeat: no-repeat; color: #d8e4ea; overflow: hidden; }
 .hero h1 { color: white; font-size: clamp(2.5rem, 5vw, 4.5rem); max-width: 700px; margin-bottom: 1.5rem; }
 .hero h1 span { color: var(--orange); }
 .hero .eyebrow { color: #b6dfe9; }
@@ -424,7 +424,7 @@ tbody tr:hover { background: #f6fafb; }
     .js .menu-toggle { display: inline-flex; background: transparent; color: white; border-color: #7893a2; }
     .js .main-nav:not(.is-open) { display: none; }
     .js .main-nav.is-open { max-height: 65dvh; overflow-y: auto; }
-    .hero { grid-template-columns: 1fr; gap: 1rem; background-image: linear-gradient(180deg, rgb(3 37 57 / 94%) 0%, rgb(3 37 57 / 88%) 60%, rgb(3 37 57 / 45%) 100%), url('../images/home-hero-destination.png'); background-position: center; }
+    .hero { grid-template-columns: 1fr; gap: 1rem; background-image: linear-gradient(180deg, rgb(3 37 57 / 94%) 0%, rgb(3 37 57 / 88%) 60%, rgb(3 37 57 / 45%) 100%), url('../images/home-hero-destination.png'); background-position: center, center bottom; }
     .hero-art { min-height: 280px; }
     .feature-grid { grid-template-columns: 1fr; }
     :is(.admin-layout, .customer-layout) .app-shell { grid-template-columns: 1fr; }
@@ -440,7 +440,7 @@ tbody tr:hover { background: #f6fafb; }
     .admin-layout .site-header .logout-form { display: none; }
     .admin-mobile-logout { display: block; }
     :is(.customer-layout, .admin-layout) .brand-logo { width: 46px; height: 34px; margin-right: .45rem; }
-    :is(.customer-layout, .admin-layout) .brand-logo img { width: 70px; height: 70px; }
+    :is(.customer-layout, .admin-layout) .brand-logo img { width: 55px; height: 55px; }
     .js :is(.customer-layout, .admin-layout) .menu-toggle { width: 44px; height: 44px; padding: 0; }
     .js :is(.customer-sidebar, .admin-sidebar):not(.is-open) { display: none; }
     .js :is(.customer-sidebar, .admin-sidebar).is-open { position: fixed; inset: 0; width: 100%; height: 100dvh; z-index: 80; border-radius: 0; padding: calc(1rem + env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) calc(1rem + env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px)); overflow-y: auto; }
