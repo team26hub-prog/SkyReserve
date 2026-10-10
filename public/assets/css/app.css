@@ -431,6 +431,18 @@ tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #f6fafb; }
 .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
 .row-actions form { margin: 0; }
+.mobile-action-icon { display: none; flex-shrink: 0; }
+@media (max-width: 600px) {
+    .mobile-action-icon { display: block; }
+    .mobile-action-label { display: none; }
+    .admin-layout .mobile-action-row { flex-wrap: nowrap; width: max-content; gap: .5rem; margin-inline: auto; }
+    .admin-layout .action-column { text-align: center; }
+    .admin-layout .row-actions .mobile-icon-button, .admin-layout .page-heading > .mobile-icon-button { width: 44px; height: 44px; min-height: 44px; padding: .65rem; flex-shrink: 0; }
+    .mobile-icon-button .mobile-action-icon { width: 20px; height: 20px; }
+    .admin-layout .row-actions .mobile-icon-button { width: 40px; height: 48px; min-height: 48px; padding: .55rem; }
+    .admin-layout .row-actions .mobile-action-icon { width: 18px; height: 22px; }
+    .admin-layout .row-actions .button, .admin-layout .row-actions button { white-space: nowrap; overflow-wrap: normal; }
+}
 .row-actions button, .row-actions .button { min-height: 40px; padding: .4rem .75rem; font-size: .8rem; }
 .flight-table { min-width: 1000px; }
 .payment-table { min-width: 900px; }
