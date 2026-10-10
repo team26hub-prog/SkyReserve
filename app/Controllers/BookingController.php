@@ -22,7 +22,8 @@ final class BookingController extends Controller
         $sections = ['bookings' => 'My Bookings', 'seats' => 'My seats', 'payments' => 'My payments', 'tickets' => 'My E-tickets'];
         $section = $_GET['section'] ?? 'bookings';
         if (!is_string($section) || !isset($sections[$section])) { http_response_code(422); $section = 'bookings'; $error = 'Choose a valid booking section.'; }
-        $this->render('customer/bookings/index', ['title' => $sections[$section], 'section' => $section, 'wide' => true, 'status' => $status, 'error' => $error, 'bookings' => (new Booking())->listForCustomer((int) $user['id'], $status)]);
+        $presentation = $section === 'payments' ? ['paymentDetails' => require BASE_PATH . '/config/payments.php', 'paymentMethods' => Payment::METHODS] : [];
+        $this->render('customer/bookings/index', ['title' => $sections[$section], 'section' => $section, 'wide' => true, 'status' => $status, 'error' => $error, 'bookings' => (new Booking())->listForCustomer((int) $user['id'], $status)] + $presentation);
     }
     public function create(): void
     {

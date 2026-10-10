@@ -6,5 +6,8 @@
 <form class="account-form" method="post" action="/bookings/cancel?booking_id=<?= (int) $booking['id'] ?>" data-confirm="Request cancellation of this booking? An administrator will review it.">
     <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">
     <label for="reason">Cancellation reason <span class="muted">(optional)</span></label><textarea id="reason" name="reason" rows="4" maxlength="1000" aria-describedby="reason-help"><?= $escape($data['reason']) ?></textarea><small id="reason-help">Up to 1000 characters.</small>
-    <button class="button-danger" type="submit">Confirm cancellation request</button>
-</form><p><a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Keep booking / return to summary</a></p>
+    <div class="actions form-actions">
+        <button class="button-danger" type="submit">Confirm cancellation request</button>
+        <a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Keep booking / return to summary</a>
+    </div>
+</form>

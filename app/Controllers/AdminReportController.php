@@ -20,6 +20,7 @@ final class AdminReportController extends Controller
     public function payments(): void { $this->show('payments'); }
     public function cancellations(): void { $this->show('cancellations'); }
     public function passengers(): void { $this->show('passengers'); }
+    public function revenue(): void { $this->show('revenue'); }
     private function show(string $type): void
     {
         $model = new AdminReport(); $error = null;

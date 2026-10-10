@@ -15,6 +15,8 @@
         <option value="economy"<?= ($record['cabin_class'] ?? '') === 'economy' ? ' selected' : '' ?>>Economy</option>
         <option value="business"<?= ($record['cabin_class'] ?? '') === 'business' ? ' selected' : '' ?>>Business</option>
     </select>
-    <button type="submit"><?= $editing ? 'Save changes' : 'Add seat' ?></button>
+    <div class="actions form-actions">
+        <button type="submit"><?= $editing ? 'Save changes' : 'Add seat' ?></button>
+        <a class="button button-secondary" href="/admin/seats?aircraft_id=<?= $aircraftId ?>">Cancel and return to seats</a>
+    </div>
 </form>
-<p><a href="/admin/seats?aircraft_id=<?= $aircraftId ?>">Cancel and return to seats</a></p>

@@ -14,6 +14,8 @@
     <input id="city" name="city" maxlength="100" value="<?= $escape($record['city'] ?? '') ?>" required>
     <label for="country">Country</label>
     <input id="country" name="country" maxlength="100" value="<?= $escape($record['country'] ?? '') ?>" required>
-    <button type="submit"><?= $editing ? 'Save changes' : 'Add airport' ?></button>
+    <div class="actions form-actions">
+        <button type="submit"><?= $editing ? 'Save changes' : 'Add airport' ?></button>
+        <a class="button button-secondary" href="/admin/airports">Cancel and return to airports</a>
+    </div>
 </form>
-<p><a href="/admin/airports">Cancel and return to airports</a></p>

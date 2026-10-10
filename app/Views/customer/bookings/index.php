@@ -4,6 +4,10 @@ $sectionDescriptions = ['bookings' => 'Review your bookings, payment progress, s
 <span class="eyebrow">Your journeys</span><h1><?= $escape($data['title'] ?? 'My Bookings') ?></h1>
 <p class="muted"><?= $escape($sectionDescriptions[$section]) ?></p>
 <?php if ($data['error']): ?><div class="notice error" role="alert"><?= $escape($data['error']) ?></div><?php endif; ?>
+<?php if ($section === 'payments'): ?>
+    <?php require BASE_PATH . '/app/Views/customer/payments/details.php'; ?>
+    <h2>All My Payments</h2>
+<?php endif; ?>
 <nav class="filter-tabs booking-status-tabs" aria-label="Booking status filters">
     <?php foreach (['all', 'pending', 'payment_submitted', 'confirmed', 'cancelled', 'cancellation_requested', 'expired'] as $status): ?><a href="/bookings?section=<?= $escape($section) ?>&amp;status=<?= $status ?>"<?= $data['status'] === $status ? ' aria-current="page"' : '' ?>><?= $escape($status === 'all' ? 'All' : Booking::statusLabel($status)) ?></a><?php endforeach; ?>
 </nav>

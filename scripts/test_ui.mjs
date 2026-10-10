@@ -162,6 +162,18 @@ try {
         await visit('/profile'); await signOut('customer'); await signIn('admin');
         await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'admin'});
         console.log(`${checks} homepage visual browser checks passed. Screenshots: ${artifacts}`);
+    } else if (process.argv.includes('--payment-details-only')) {
+        await signIn('customer');
+        await checkPages([['customer-payments', '/bookings?section=payments'], ['customer-payments-filtered', '/bookings?section=payments&status=confirmed']], 'customer');
+        await visit('/bookings?section=payments');
+        const paymentConfig = JSON.parse(execFileSync(php, ['-r', "require 'bootstrap.php'; echo json_encode(require 'config/payments.php');"], {encoding:'utf8'}));
+        assert(await evaluate(`(() => { const section=document.querySelector('.manual-payment-details'); const configured=${JSON.stringify(paymentConfig)}; return Object.values(configured).every(value=>section.textContent.includes(value)) && section.textContent.includes('booking reference / PNR') && section.nextElementSibling.tagName==='SCRIPT' && !![...document.querySelectorAll('h2')].find(heading=>heading.textContent==='All My Payments'); })()`), 'Payment details use the existing public configuration and PNR guidance');
+        assert(await evaluate(`document.querySelector('.manual-payment-details').textContent.includes('Bank transfer') && document.querySelector('.manual-payment-details').textContent.includes('Cash') && document.querySelectorAll('.booking-status-tabs a').length===7 && document.querySelectorAll('.flight-card').length>0`), 'Supported methods, existing filters and payment records remain available');
+        assert(await evaluate(`(async () => { let copied; Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{copied=value;}}}); document.querySelector('[data-copy-payment-account]').click(); await new Promise(resolve=>setTimeout(resolve,50)); return copied===document.querySelector('#manual-payment-account').textContent.trim() && document.querySelector('.payment-copy-status').textContent.includes('copied'); })()`), 'Copy action copies only the customer-facing account and announces success');
+        assert(await evaluate(`(async () => { navigator.clipboard.writeText=async()=>{throw new Error('Clipboard denied');}; document.querySelector('[data-copy-payment-account]').click(); await new Promise(resolve=>setTimeout(resolve,50)); return getSelection().toString()===document.querySelector('#manual-payment-account').textContent && document.querySelector('.payment-copy-status').textContent.includes('Automatic copying is unavailable'); })()`), 'Clipboard denial offers a visible manual-copy fallback');
+        await visit('/bookings');
+        assert(await evaluate(`!document.querySelector('.manual-payment-details')`), 'Payment instructions appear only in My Payments');
+        console.log(`${checks} payment details browser checks passed. Screenshots: ${artifacts}`);
     } else if (process.argv.includes('--analytics-only') || process.argv.includes('--tickets-only')) {
         await signIn('customer');
         await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
@@ -172,9 +184,21 @@ try {
         await respondToConfirmation(); await ready('/bookings/show');
         await visit('/profile'); await signOut('customer'); await signIn('admin');
         await visit('/admin/payments');
+        if (process.argv.includes('--tickets-only')) {
+            for (const width of [320, 375, 768, 1440]) {
+                await command('Emulation.setDeviceMetricsOverride', {width, height: 900, deviceScaleFactor: 1, mobile: width < 800});
+                assert(await evaluate(`(() => { const button=document.querySelector('.payment-table .button'); const style=getComputedStyle(button); return style.whiteSpace==='nowrap' && button.getBoundingClientRect().height < 70 && document.documentElement.scrollWidth <= innerWidth+1; })()`), `Payment action stays on one line without page overflow at ${width}px`);
+            }
+        }
         const paymentId = await evaluate(`(() => { const row=[...document.querySelectorAll('tbody tr')].find(row=>row.textContent.includes(${JSON.stringify(fixture.customerEmail)})); return new URL(row.querySelector('a[href^="/admin/payments/show"]').href).searchParams.get('id'); })()`);
         await visit(`/admin/payments/show?id=${paymentId}`);
-        await evaluate(`document.querySelector('form[action^="/admin/payments/verify"]').requestSubmit(); true`);
+        for (const width of [320, 375, 390]) {
+            await command('Emulation.setDeviceMetricsOverride', {width, height: 900, deviceScaleFactor: 1, mobile: false});
+            assert(await evaluate(`(() => { const row=document.querySelector('.payment-review-actions'); const [verify,reject,back]=[...row.children].map(button=>button.getBoundingClientRect()); const bounds=row.getBoundingClientRect(); return Math.abs(verify.top-reject.top)<1 && Math.abs(verify.width-reject.width)<1 && back.top>=verify.bottom && Math.abs(back.width-bounds.width)<1 && Math.abs(back.left-bounds.left)<1 && document.documentElement.scrollWidth<=innerWidth+1; })()`), `Mobile payment review has equal-width actions and a full-width return row at ${width}px`);
+        }
+        await command('Emulation.setDeviceMetricsOverride', {width:1440, height:900, deviceScaleFactor:1, mobile:false});
+        assert(await evaluate(`(() => { const verify=document.querySelector('button[form="verify-payment"]'); const reject=document.querySelector('button[form="reject-payment"]'); const back=verify.parentElement.querySelector('a'); return verify.form.id==='verify-payment' && reject.form.id==='reject-payment' && reject.form.querySelector('#reason') && [reject,back].every(button=>Math.abs(button.getBoundingClientRect().top-verify.getBoundingClientRect().top)<2); })()`), 'Admin payment review buttons share one desktop row and retain separate form ownership');
+        await evaluate(`document.querySelector('button[form="verify-payment"]').click(); true`);
         await respondToConfirmation(); await ready('/admin/payments/show');
         if (process.argv.includes('--tickets-only')) {
             await evaluate(`document.querySelector('form[action^="/admin/bookings/tickets"]').requestSubmit();true`);
@@ -187,7 +211,7 @@ try {
             await checkTicketPdf({command,evaluate,assert,visit,artifacts,ticketId,role:'customer'});
             console.log(`${checks} ticket PDF browser checks passed. Screenshots and PDFs: ${artifacts}`);
         } else {
-        await checkPages([['report-analytics', '/admin/reports']], 'admin');
+        await checkPages([['report-analytics', '/admin/reports'], ['revenue-report', '/admin/reports/revenue']], 'admin');
         const screenshot = async name => { const result = await command('Page.captureScreenshot', {captureBeyondViewport: true}); writeFileSync(join(artifacts,name), Buffer.from(result.data,'base64')); };
         await checkReportAnalytics({command,evaluate,assert,visit,waitFor,emptyHtml:execFileSync(php,[fixtureScript,'--analytics-empty'],{encoding:'utf8'}),screenshot});
         console.log(`${checks} analytics browser checks passed. Screenshots: ${artifacts}`);
@@ -322,7 +346,7 @@ try {
     assert(await evaluate(`scrollY === 0`), 'Back-to-top link returns to page start with reduced motion');
     await command('Emulation.setEmulatedMedia', { features: [] });
     await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: false });
-    assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).display === 'none' && getComputedStyle(document.querySelector('.header-account')).display !== 'none' && getComputedStyle(document.querySelector('.header-account-name')).display === 'none' && Math.abs(document.querySelector('.brand').getBoundingClientRect().left + document.querySelector('.brand').getBoundingClientRect().width / 2 - innerWidth / 2) < 5`), 'Admin mobile header centers brand and keeps avatar visible with menu collapsed');
+    assert(await evaluate(`getComputedStyle(document.querySelector('.admin-sidebar')).display === 'none' && getComputedStyle(document.querySelector('.header-account')).display !== 'none' && getComputedStyle(document.querySelector('.header-account-name')).display === 'none' && Math.abs(document.querySelector('.brand').getBoundingClientRect().left + document.querySelector('.brand').getBoundingClientRect().width / 2 - document.querySelector('.header-inner').getBoundingClientRect().left - document.querySelector('.header-inner').getBoundingClientRect().width / 2) < 2`), 'Admin mobile header centers brand and keeps avatar visible with menu collapsed');
     await evaluate(`document.querySelector('.menu-toggle').click(); true`);
     assert(await evaluate(`document.querySelector('.admin-sidebar').getBoundingClientRect().height === innerHeight && document.querySelector('.admin-sidebar .sidebar-logout').getBoundingClientRect().height > 0`), 'Admin mobile hamburger opens full-screen features and logout');
     const adminMenuScreenshot = await command('Page.captureScreenshot', { captureBeyondViewport: false });

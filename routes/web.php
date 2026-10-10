@@ -49,6 +49,7 @@ return [
         '/admin/reports/payments' => [AdminReportController::class, 'payments'],
         '/admin/reports/cancellations' => [AdminReportController::class, 'cancellations'],
         '/admin/reports/passengers' => [AdminReportController::class, 'passengers'],
+        '/admin/reports/revenue' => [AdminReportController::class, 'revenue'],
         '/admin/airports' => [AirportController::class, 'index'],
         '/admin/airports/create' => [AirportController::class, 'create'],
         '/admin/airports/edit' => [AirportController::class, 'edit'],

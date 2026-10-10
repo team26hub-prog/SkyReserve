@@ -40,6 +40,8 @@
             <option value="<?= $value ?>"<?= ($record['status'] ?? '') === $value ? ' selected' : '' ?>><?= $label ?></option>
         <?php endforeach; ?>
     </select>
-    <button type="submit"<?= $missingReferences ? ' disabled' : '' ?>><?= $editing ? 'Save changes' : 'Add flight' ?></button>
+    <div class="actions form-actions">
+        <button type="submit"<?= $missingReferences ? ' disabled' : '' ?>><?= $editing ? 'Save changes' : 'Add flight' ?></button>
+        <a class="button button-secondary" href="/admin/flights">Cancel and return to flights</a>
+    </div>
 </form>
-<p><a href="/admin/flights">Cancel and return to flights</a></p>

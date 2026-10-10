@@ -13,6 +13,8 @@
     <label for="total_capacity">Total capacity</label>
     <input id="total_capacity" name="total_capacity" type="number" min="1" max="4294967295" step="1" value="<?= $escape((string) ($record['total_capacity'] ?? '')) ?>" required>
     <?php if (isset($record['seat_count'])): ?><small>Currently configured seats: <?= (int) $record['seat_count'] ?>.</small><?php endif; ?>
-    <button type="submit"><?= $editing ? 'Save changes' : 'Add aircraft' ?></button>
+    <div class="actions form-actions">
+        <button type="submit"><?= $editing ? 'Save changes' : 'Add aircraft' ?></button>
+        <a class="button button-secondary" href="/admin/aircraft">Cancel and return to aircraft</a>
+    </div>
 </form>
-<p><a href="/admin/aircraft">Cancel and return to aircraft</a></p>

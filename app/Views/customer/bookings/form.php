@@ -24,7 +24,9 @@
     </select>
     <label for="phone">Passenger phone number</label>
     <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" value="<?= $escape($values['phone'] ?? '') ?>" required>
-    <button type="submit">Create booking</button>
+    <div class="actions form-actions">
+        <button type="submit">Create booking</button>
+        <a class="button button-secondary" href="/flights/show?id=<?= (int) $flight['id'] ?>">Return to flight details</a>
+    </div>
 </form>
 <script src="/assets/js/passenger-form.js" defer></script>
-<p><a class="button button-secondary" href="/flights/show?id=<?= (int) $flight['id'] ?>">Return to flight details</a></p>

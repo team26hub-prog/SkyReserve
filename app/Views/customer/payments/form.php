@@ -32,6 +32,8 @@
     <label for="receipt">Receipt image <span class="muted">(optional)</span></label>
     <input id="receipt" name="receipt" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" aria-describedby="receipt-help">
     <small id="receipt-help">JPG, JPEG, PNG, or WEBP, up to 5 MB. Images must be no larger than 6000 pixels per side and 12 megapixels. After an error, select the receipt again.</small>
-    <button type="submit">Submit payment for review</button>
+    <div class="actions form-actions">
+        <button type="submit">Submit payment for review</button>
+        <a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Return to booking summary</a>
+    </div>
 </form>
-<p><a class="button button-secondary" href="/bookings/show?id=<?= (int) $booking['id'] ?>">Return to booking summary</a></p>

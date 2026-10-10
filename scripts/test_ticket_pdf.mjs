@@ -7,6 +7,7 @@ export async function checkTicketPdf({command,evaluate,assert,visit,artifacts,ti
     for (const width of [375,1440]) {
         await command('Emulation.setDeviceMetricsOverride', {width,height:1000,deviceScaleFactor:1,mobile:false});
         await visit(`${prefix}/tickets/show?id=${ticketId}`);
+        if (width <= 800) assert(await evaluate(`(() => { const brand=document.querySelector('.header-inner .brand').getBoundingClientRect(); const header=document.querySelector('.header-inner').getBoundingClientRect(); return Math.abs((brand.left+brand.right)/2-(header.left+header.right)/2)<2; })()`), `${role} mobile navbar brand is centered at ${width}px`);
         assert(await evaluate(`(() => { const link=document.querySelector('.ticket-actions a[download]'); return link.textContent === 'Download PDF' && link.download.endsWith('.pdf') && !document.querySelector('.ticket-actions').textContent.includes('HTML'); })()`), `${role} PDF button and guidance at ${width}px`);
         assert(await evaluate(`document.documentElement.scrollWidth <= innerWidth+1 && [...document.querySelectorAll('.ticket-actions a,.ticket-actions button')].every(button=>{const rect=button.getBoundingClientRect();return rect.left>=0 && rect.right<=innerWidth+1 && rect.height>=44;})`), `${role} ticket buttons fit with accessible tap targets at ${width}px`);
         assert(await evaluate(`window.print=()=>{window.printInvoked=true;};document.querySelector('[data-print-ticket]').click();window.printInvoked===true`), `${role} Print ticket still opens browser printing`);

@@ -9,7 +9,7 @@
     <p class="empty-state">No <?= $escape($data['status']) ?> payments to show.</p>
 <?php else: ?>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Payment list">
-        <table>
+        <table class="payment-table">
             <caption class="sr-only">Submitted payments, customer bookings, and review actions</caption>
             <thead><tr><th scope="col">Booking / PNR</th><th scope="col">Customer</th><th scope="col">Flight</th><th scope="col">Amount submitted</th><th scope="col">Payment date (UTC)</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
             <tbody><?php foreach ($data['payments'] as $payment): ?><tr>

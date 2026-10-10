@@ -175,6 +175,30 @@ try {
     $flightHtml = $request($admin,'GET','/admin/reports/flights?' . http_build_query($selected));
     $assert(str_contains($flightHtml['body'],'&lt;b&gt;Report aircraft&lt;/b&gt;'),'flight report escapes aircraft model');
     $payment = $model->report('payments',$selected);
+    $revenue = $model->report('revenue', $selected);
+    $assert($revenue['total'] === 3 && count($revenue['rows']) === 3 && array_unique(array_column($revenue['rows'], 'payment_status')) === ['verified'], 'revenue returns only verified payment records without join fanout');
+    $assert($revenue['totals'] === [['currency' => 'PKR', 'amount' => '400.65'], ['currency' => 'USD', 'amount' => '100.10']], 'revenue sums exact decimal amounts separately per currency, including cancelled bookings');
+    $assert($model->report('revenue', $selected + ['start_date' => '2025-02-02', 'end_date' => '2025-02-02'])['totals'] === [['currency' => 'PKR', 'amount' => '100.25']], 'revenue submission-date range includes end-of-day boundary');
+    $assert($model->report('revenue', $selected + ['start_date' => '2025-02-03'])['total'] === 0, 'revenue excludes pending payments in a matching date range');
+    $assert($model->report('revenue', ['flight_id' => (string) $flights[1]])['rows'] === [], 'revenue flight filter produces an accurate empty state');
+    foreach (['pending', 'verified', 'rejected', 'refunded'] as $status) {
+        try { $model->report('revenue', $selected + ['payment_status' => $status]); throw new RuntimeException('Revenue accepted a status override.'); }
+        catch (DomainException) { $assert(true, 'revenue rejects payment-status overrides: ' . $status); }
+    }
+    $revenueHtml = $request($admin, 'GET', '/admin/reports/revenue?' . http_build_query($selected));
+    $assert(str_contains($revenueHtml['body'], 'Verified revenue') && str_contains($revenueHtml['body'], 'PKR 400.65') && str_contains($revenueHtml['body'], 'USD 100.10') && str_contains($revenueHtml['body'], '&lt;b&gt;Report customer&lt;/b&gt;'), 'revenue page renders separate currency totals and escapes stored data');
+    $assert(str_contains($revenueHtml['body'], '/admin/payments/show?id=' . $paymentIds[1]), 'revenue records link to existing protected payment details');
+    $assert(str_contains($request($admin, 'GET', '/admin/reports/revenue?flight_id=' . $flights[1])['body'], 'No records match these filters.'), 'empty revenue page shows the shared professional empty state');
+    $db->beginTransaction();
+    try {
+        $insert = $db->prepare("INSERT INTO payments (booking_id, amount, currency, method, transaction_reference, status, payment_date, created_at) VALUES (?, '1.01', 'PKR', 'cash', ?, 'verified', '2025-02-01', '2025-02-01 12:00:00')");
+        foreach (array_slice($bookings, -52) as $i => $bookingId) $insert->execute([$bookingId, 'REVENUE-PAGE-' . $suffix . '-' . $i]);
+        $revenueFlight = ['flight_id' => (string) $flights[1]];
+        $revenueFirst = $model->report('revenue', $revenueFlight);
+        $revenueSecond = $model->report('revenue', $revenueFlight + ['page' => '2']);
+        $assert($revenueFirst['total'] === 52 && count($revenueFirst['rows']) === 50 && count($revenueSecond['rows']) === 2 && !array_intersect(array_column($revenueFirst['rows'], 'id'), array_column($revenueSecond['rows'], 'id')), 'revenue paginates verified records without repetition');
+        $assert($revenueFirst['totals'] === $revenueSecond['totals'] && $revenueSecond['totals'] === [['currency' => 'PKR', 'amount' => '52.52']], 'revenue currency totals cover all matching pages rather than just visible rows');
+    } finally { $db->rollBack(); }
     $assert($payment['total'] === 6 && $payment['totals'] === [['currency' => 'PKR','amount' => '656.60','verified_amount' => '400.65'],['currency' => 'USD','amount' => '100.10','verified_amount' => '100.10']],'payments report includes history and exact submitted/verified totals per currency');
     foreach (['pending' => 1,'verified' => 3,'rejected' => 1,'refunded' => 1] as $status => $count) $assert($model->report('payments',$selected+['payment_status' => $status])['total'] === $count,'payment status filter: ' . $status);
     $assert($model->report('payments',$selected+['booking_status' => 'cancelled'])['total'] === 1,'payment booking status filter');

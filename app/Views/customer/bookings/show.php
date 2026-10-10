@@ -29,12 +29,17 @@
         <dt>Phone</dt><dd><?= $escape($passenger['phone'] ?? '') ?></dd>
     </dl>
 <?php endforeach; ?>
-<p><a class="button button-secondary" href="/flights">Search flights</a></p>
+<div class="actions">
+<a class="button button-secondary" href="/flights">Search flights</a>
 <?php $withinDeadline = $booking['status'] === 'confirmed' || $booking['expires_at'] === null || $booking['expires_at'] > gmdate('Y-m-d H:i:s');
 $upcomingFlight = in_array($flight['status'], ['scheduled', 'delayed'], true) && $flight['departure_at'] > gmdate('Y-m-d H:i:s'); ?>
 <?php if ($withinDeadline && $upcomingFlight && in_array($booking['status'], ['pending', 'payment_submitted', 'confirmed'], true)): ?>
     <p><a class="button" href="/bookings/seats?booking_id=<?= (int) $booking['id'] ?>">View / select seats</a></p>
 <?php endif; ?>
+<?php if ($withinDeadline && $upcomingFlight && $booking['status'] === 'pending' && !array_filter($data['payments'], static fn (array $payment): bool => in_array($payment['status'], ['pending', 'verified'], true))): ?>
+    <a class="button" href="/bookings/payment?booking_id=<?= (int) $booking['id'] ?>">Submit payment</a>
+<?php endif; ?>
+</div>
 <div id="payment-details"></div>
 <?php if ($data['payments']): ?>
     <h2>Payment details</h2>
@@ -50,14 +55,13 @@ $upcomingFlight = in_array($flight['status'], ['scheduled', 'delayed'], true) &&
         </dl>
     <?php endforeach; ?>
 <?php endif; ?>
-<?php if ($withinDeadline && $upcomingFlight && $booking['status'] === 'pending' && !array_filter($data['payments'], static fn (array $payment): bool => in_array($payment['status'], ['pending', 'verified'], true))): ?>
-    <p><a class="button" href="/bookings/payment?booking_id=<?= (int) $booking['id'] ?>">Submit payment</a></p>
-<?php endif; ?>
 <?php
 $ticketPrefix = ''; $ticketBookingId = (int) $booking['id'];
 $ticketEligible = $booking['status'] === 'confirmed' && (bool) array_filter($data['payments'], static fn (array $payment): bool => $payment['status'] === 'verified');
 require BASE_PATH . '/app/Views/tickets/booking-links.php';
 ?>
 <?php require BASE_PATH . '/app/Views/customer/cancellations/history.php'; ?>
+<div class="actions">
 <?php if (Cancellation::eligible($booking, $flight)): ?><p><a class="button button-danger" href="/bookings/cancel?booking_id=<?= (int) $booking['id'] ?>">Request cancellation</a></p><?php endif; ?>
 <p><a class="button button-secondary" href="/bookings">Return to My Bookings</a></p>
+</div>

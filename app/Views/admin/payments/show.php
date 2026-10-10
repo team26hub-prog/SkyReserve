@@ -27,20 +27,24 @@
 <?php if ($payment['status'] === 'pending' && $payment['booking_status'] === 'payment_submitted'): ?>
     <h2>Review payment</h2>
     <p class="muted">Compare the submitted amount and receipt with the amount due. Verify confirms the booking; reject allows the customer to submit payment again when the booking is still eligible.</p>
-    <form action="/admin/payments/verify?id=<?= (int) $payment['id'] ?>" method="post" data-confirm="Verify this payment and confirm the booking?">
-        <input type="hidden" name="_token" value="<?= $escape($csrf) ?>"><button type="submit">Verify payment</button>
+    <form id="verify-payment" action="/admin/payments/verify?id=<?= (int) $payment['id'] ?>" method="post" data-confirm="Verify this payment and confirm the booking?">
+        <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">
     </form>
-    <form class="account-form review-form" action="/admin/payments/reject?id=<?= (int) $payment['id'] ?>" method="post" data-confirm="Reject this payment and return the booking to payment required?">
+    <form id="reject-payment" class="account-form review-form" action="/admin/payments/reject?id=<?= (int) $payment['id'] ?>" method="post" data-confirm="Reject this payment and return the booking to payment required?">
         <input type="hidden" name="_token" value="<?= $escape($csrf) ?>">
         <label for="reason">Rejection reason <span class="muted">(optional)</span></label>
         <textarea id="reason" name="reason" maxlength="1000" rows="3" aria-describedby="reason-help"><?= $escape($data['reason']) ?></textarea>
         <small id="reason-help">Up to 1000 characters. The customer can see this explanation.</small>
-        <button class="button-danger" type="submit">Reject payment</button>
     </form>
+    <div class="actions form-actions payment-review-actions">
+        <button type="submit" form="verify-payment">Verify payment</button>
+        <button class="button-danger" type="submit" form="reject-payment">Reject payment</button>
+        <a class="button button-secondary" href="/admin/payments?status=<?= isset(Payment::REVIEW_STATUSES[$payment['status']]) ? $escape($payment['status']) : 'pending' ?>">Return to payments</a>
+    </div>
 <?php else: ?>
     <p class="notice success" role="status">This payment cannot be reviewed in its current payment/booking state.</p>
+    <p><a class="button button-secondary" href="/admin/payments?status=<?= isset(Payment::REVIEW_STATUSES[$payment['status']]) ? $escape($payment['status']) : 'pending' ?>">Return to payments</a></p>
 <?php endif; ?>
-<p><a href="/admin/payments?status=<?= isset(Payment::REVIEW_STATUSES[$payment['status']]) ? $escape($payment['status']) : 'pending' ?>">Return to payments</a></p>
 <?php
 $ticketPrefix = '/admin'; $ticketBookingId = (int) $payment['booking_id'];
 $ticketEligible = $payment['booking_status'] === 'confirmed' && $payment['status'] === 'verified';

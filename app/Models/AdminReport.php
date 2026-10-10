@@ -16,6 +16,7 @@ final class AdminReport extends Model
         'payments' => ['title' => 'Payments Report', 'date' => 'Payment submission', 'statuses' => ['payment_status','booking_status']],
         'cancellations' => ['title' => 'Cancellations Report', 'date' => 'Cancellation request', 'statuses' => ['cancellation_status','booking_status']],
         'passengers' => ['title' => 'Passenger List by Flight', 'date' => 'Flight departure', 'statuses' => ['booking_status']],
+        'revenue' => ['title' => 'Revenue Report', 'date' => 'Payment submission', 'statuses' => []],
     ];
     public function dashboard(): array
     {
@@ -125,6 +126,10 @@ final class AdminReport extends Model
     }
     private function specification(string $type): array
     {
+        // Reuse payment joins/columns; revenue always restricts all queries to verified records.
+        if ($type === 'revenue') return array_replace($this->specification('payments'), [
+            'status' => [], 'conditions' => ["p.status = 'verified'"],
+        ]);
         $route = " JOIN airports o ON o.id = f.origin_airport_id JOIN airports d ON d.id = f.destination_airport_id";
         $latestPayment = ' LEFT JOIN payments latest ON latest.id = (SELECT MAX(lp.id) FROM payments lp WHERE lp.booking_id = b.id)';
         $booking = ' JOIN bookings b ON b.id = p.booking_id JOIN users u ON u.id = b.user_id JOIN flights f ON f.id = b.flight_id' . $route;
@@ -174,7 +179,7 @@ final class AdminReport extends Model
         // Validation also runs here so a caller cannot inject identifiers or bypass filter rules.
         $filters = $this->filters($type,$input);
         if ($type === 'passengers' && $filters['flight_id'] === '') return ['rows' => [],'total' => 0,'totals' => [],'page' => 1,'pages' => 1,'filters' => $filters];
-        $spec = $this->specification($type); $conditions = []; $params = [];
+        $spec = $this->specification($type); $conditions = $spec['conditions'] ?? []; $params = [];
         if ($filters['start_date'] !== '') { $conditions[] = $spec['date'] . ' >= ?'; $params[] = $filters['start_date'] . ' 00:00:00'; }
         if ($filters['end_date'] !== '') { $conditions[] = $spec['date'] . ' <= ?'; $params[] = $filters['end_date'] . ' 23:59:59'; }
         if ($filters['flight_id'] !== '') { $conditions[] = $spec['flight'] . ' = ?'; $params[] = $filters['flight_id']; }
