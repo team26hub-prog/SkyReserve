@@ -4,8 +4,8 @@ $sectionDescriptions = ['bookings' => 'Review your bookings, payment progress, s
 <span class="eyebrow">Your journeys</span><h1><?= $escape($data['title'] ?? 'My Bookings') ?></h1>
 <p class="muted"><?= $escape($sectionDescriptions[$section]) ?></p>
 <?php if ($data['error']): ?><div class="notice error" role="alert"><?= $escape($data['error']) ?></div><?php endif; ?>
-<nav class="filter-tabs" aria-label="Booking status filters">
-    <?php foreach (['all' => 'All'] + Booking::STATUSES as $status => $label): ?><a href="/bookings?section=<?= $escape($section) ?>&amp;status=<?= $status ?>"<?= $data['status'] === $status ? ' aria-current="page"' : '' ?>><?= $escape($label) ?></a><?php endforeach; ?>
+<nav class="filter-tabs booking-status-tabs" aria-label="Booking status filters">
+    <?php foreach (['all', 'pending', 'payment_submitted', 'confirmed', 'cancelled', 'cancellation_requested', 'expired'] as $status): ?><a href="/bookings?section=<?= $escape($section) ?>&amp;status=<?= $status ?>"<?= $data['status'] === $status ? ' aria-current="page"' : '' ?>><?= $escape($status === 'all' ? 'All' : Booking::statusLabel($status)) ?></a><?php endforeach; ?>
 </nav>
 <?php if (!$data['bookings']): ?><p class="empty-state">No bookings match this filter. <a href="/flights">Search flights</a> to plan a journey.</p><?php endif; ?>
 <div class="flight-results">

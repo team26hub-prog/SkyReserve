@@ -26,6 +26,7 @@ $navCurrent = static fn (string $path): string => $currentPath === $path ? ' ari
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#032539">
     <title><?= $escape($data['title'] ?? 'SkyReserve') ?> | SkyReserve</title>
+    <link rel="icon" type="image/png" href="/assets/images/favicon.png">
     <link rel="stylesheet" href="/assets/css/app.css">
     <?php if (str_contains($view, '/tickets/')): ?><link rel="stylesheet" href="/assets/css/ticket.css"><?php endif; ?>
     <script src="/assets/js/app.js" defer></script>

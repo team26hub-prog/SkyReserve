@@ -43,7 +43,7 @@
             'admin' => ['/flights', '/admin/flights', '/admin/aircraft', '/admin/payments', '/admin/payments?status=pending', '/admin/payments?status=verified'],
             default => ['/flights', '/login', '/login', '/login', '/login', '/login'],
         };
-        $journeyIcons = ['search', 'passenger', 'seat', 'payment', 'verify', 'ticket'];
+        $journeyIcons = ['journey-search', 'journey-book', 'journey-seat', 'journey-payment', 'journey-verify', 'journey-ticket'];
         foreach (['Search', 'Book', 'Choose Seat', 'Payment', 'Verification', 'Ticket'] as $index => $step): ?>
             <li><a href="<?= $escape($journeyPaths[$index]) ?>"><span class="sr-only">Step <?= $index + 1 ?>: </span><span class="feature-number journey-icon" aria-hidden="true"><?= $homeIcon($journeyIcons[$index]) ?></span><span><?= $escape($step) ?></span></a><?php if ($index < 5): ?><span class="journey-arrow" aria-hidden="true"><?= $homeIcon('plane') ?></span><?php endif; ?></li>
         <?php endforeach; ?>
@@ -55,14 +55,15 @@
     <p class="muted">A little inspiration for your next journey. Check Search Flights for available routes and travel dates.</p>
     <div class="destination-grid">
         <?php
-        // Names and codes mirror scripts/seed_inventory.php; no availability is implied.
-        foreach ([['Lahore', 'LHE', 'Allama Iqbal International Airport', 'Pakistan', 'lahore'], ['Karachi', 'KHI', 'Jinnah International Airport', 'Pakistan', 'karachi'], ['Islamabad', 'ISB', 'Islamabad International Airport', 'Pakistan', 'islamabad'], ['Dubai', 'DXB', 'Dubai International Airport', 'United Arab Emirates', 'dubai']] as [$city, $code, $airport, $country, $graphic]): ?>
+        // Destination inspiration only; these cards do not imply flight availability.
+        foreach ([['Lahore', 'LHE', 'Allama Iqbal International Airport', 'Pakistan', 'lahore', 'Badshahi Mosque in Lahore'], ['Karachi', 'KHI', 'Jinnah International Airport', 'Pakistan', 'karachi', 'Mazar-e-Quaid in Karachi'], ['Islamabad', 'ISB', 'Islamabad International Airport', 'Pakistan', 'islamabad', 'Panoramic view of Faisal Mosque in Islamabad'], ['Dubai', 'DXB', 'Dubai International Airport', 'United Arab Emirates', 'dubai', 'Dubai skyline'], ['Jeddah', 'JED', 'King Abdulaziz International Airport', 'Saudi Arabia', 'jeddah', 'Jeddah waterfront on the Red Sea'], ['Istanbul', 'IST', 'Istanbul Airport', 'Türkiye', 'istanbul', 'Istanbul skyline across the Bosphorus']] as [$city, $code, $airport, $country, $image, $alt]): ?>
             <a class="card destination-card" href="/flights" aria-label="<?= $escape('Explore ' . $city . ' — open Search Flights') ?>">
-                <div class="destination-art" aria-hidden="true"><svg viewBox="0 0 160 90" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><use href="#home-<?= $graphic ?>"/></svg><span class="destination-code"><?= $code ?></span></div>
+                <div class="destination-art"><img src="/assets/images/destinations/<?= $escape($image) ?>.png" alt="<?= $escape($alt) ?>" width="960" height="540" loading="lazy" decoding="async"><span class="destination-code"><span class="sr-only">Airport code: </span><?= $escape($code) ?></span></div>
                 <div class="destination-content"><span class="destination-country"><?= $escape($country) ?></span><h3><?= $escape($city) ?></h3><p><?= $escape($airport) ?></p><span class="destination-link">Explore flights <span aria-hidden="true">→</span></span></div>
             </a>
         <?php endforeach; ?>
     </div>
+    <p class="destination-credits"><a href="/assets/images/destinations/credits.html">Destination photo credits</a></p>
 </section>
 <section class="card home-final-cta" aria-labelledby="final-cta-title">
     <svg class="home-cta-art" viewBox="0 0 420 180" fill="none" aria-hidden="true" focusable="false"><circle cx="330" cy="100" r="95"/><ellipse cx="330" cy="100" rx="48" ry="95"/><path d="M235 100h190M250 55h160M250 145h160M5 155C100 20 180 190 340 30" stroke-dasharray="4 7"/><use href="#home-plane" x="175" y="65" width="44" height="44"/></svg>
