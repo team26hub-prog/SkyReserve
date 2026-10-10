@@ -1,7 +1,7 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/betayhqp/skyreserve.betabox.cx/public
+    - export DEPLOYPATH=/home/betayhqp/skyreserve.betabox.cx
     - /bin/mkdir -p "$DEPLOYPATH"
     - >-
       rsync -rlt --checksum --safe-links
