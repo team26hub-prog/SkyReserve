@@ -1,3 +1,4 @@
+<?php require BASE_PATH . '/app/Views/foundation/graphics.php'; ?>
 <section class="hero" aria-labelledby="welcome-title">
     <div>
         <span class="eyebrow">Welcome to SkyReserve</span>
@@ -17,19 +18,20 @@
 <section aria-labelledby="journey-title">
     <div class="section-heading"><h2 id="journey-title">From plans to takeoff</h2><a href="/flights">Explore available flights →</a></div>
     <div class="feature-grid">
-        <article class="feature-card"><span class="feature-number">01</span><h3>Find your route</h3><p>Choose your departure, destination, and travel date. Compare schedules and fares in one place.</p></article>
-        <article class="feature-card"><span class="feature-number">02</span><h3>Make it your journey</h3><p>Sign in to create a booking and add your passenger details.</p></article>
-        <article class="feature-card"><span class="feature-number">03</span><h3>Choose your seat</h3><p>See your aircraft's available seats and select your preferred spot for the journey.</p></article>
+        <article class="feature-card"><div class="feature-heading"><span class="home-icon-container"><?= $homeIcon('route') ?></span><h3>Find your route</h3><span class="feature-number" aria-hidden="true">01</span></div><p>Choose your departure, destination, and travel date. Compare schedules and fares in one place.</p></article>
+        <article class="feature-card"><div class="feature-heading"><span class="home-icon-container"><?= $homeIcon('passenger') ?></span><h3>Make it your journey</h3><span class="feature-number" aria-hidden="true">02</span></div><p>Sign in to create a booking and add your passenger details.</p></article>
+        <article class="feature-card"><div class="feature-heading"><span class="home-icon-container"><?= $homeIcon('seat') ?></span><h3>Choose your seat</h3><span class="feature-number" aria-hidden="true">03</span></div><p>See your aircraft's available seats and select your preferred spot for the journey.</p></article>
     </div>
 </section>
 <section class="home-section" aria-labelledby="benefits-title">
     <div class="section-heading"><h2 id="benefits-title">Why choose SkyReserve</h2></div>
     <div class="benefit-grid">
-        <?php foreach ([['Easy flight search', 'Compare routes, departure times, and fares in one place.', 'm4 17 5-5 4 3 7-10M15 5h5v5'], ['Simple seat selection', 'See available seats and choose a spot on your aircraft.', 'M6 3v10h12V3M4 13v5h16v-5M6 18v3M18 18v3'], ['Manual payment verification', 'Submit your payment details for review by the airline team.', 'M5 3h14v18H5zM8 8h8M8 12h4m0 4 2 2 4-4'], ['Easy booking and ticket management', 'Keep your booking details and printable tickets together.', 'M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4zM15 6v12']] as [$title, $text, $path]): ?>
-            <article class="card benefit-card"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="<?= $escape($path) ?>"/></svg></span><div class="benefit-content"><h3><?= $escape($title) ?></h3><p><?= $escape($text) ?></p></div></article>
+        <?php foreach ([['Easy flight search', 'Compare routes, departure times, and fares in one place.', 'search'], ['Simple seat selection', 'See available seats and choose a spot on your aircraft.', 'seat'], ['Manual payment verification', 'Submit your payment details for review by the airline team.', 'verify'], ['Easy booking and ticket management', 'Keep your booking details and printable tickets together.', 'ticket']] as [$title, $text, $icon]): ?>
+            <article class="card benefit-card"><span class="benefit-icon" aria-hidden="true"><?= $homeIcon($icon) ?></span><div class="benefit-content"><h3><?= $escape($title) ?></h3><p><?= $escape($text) ?></p></div></article>
         <?php endforeach; ?>
     </div>
 </section>
+<div class="home-flight-divider" aria-hidden="true"><svg viewBox="0 0 800 56" fill="none" focusable="false"><path d="M10 40C180 2 300 60 430 27S650 5 790 28" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 7"/><circle cx="10" cy="40" r="4" fill="currentColor"/><circle cx="790" cy="28" r="4" fill="currentColor"/><use href="#home-plane" x="395" y="12" width="28" height="28" stroke="currentColor" stroke-width="1.5"/></svg></div>
 <section class="home-section" aria-labelledby="booking-journey-title">
     <div class="section-heading"><h2 id="booking-journey-title">Your booking journey</h2></div>
     <p class="muted">A clear path from finding a flight to receiving your ticket.</p>
@@ -41,13 +43,29 @@
             'admin' => ['/flights', '/admin/flights', '/admin/aircraft', '/admin/payments', '/admin/payments?status=pending', '/admin/payments?status=verified'],
             default => ['/flights', '/login', '/login', '/login', '/login', '/login'],
         };
-        foreach (['Search', 'Book', 'Choose Seat', 'Submit Payment', 'Verification', 'Ticket'] as $index => $step): ?>
-            <li><a href="<?= $escape($journeyPaths[$index]) ?>"><span class="feature-number" aria-hidden="true"><?= sprintf('%02d', $index + 1) ?></span><span><?= $escape($step) ?></span></a><?php if ($index < 5): ?><span class="journey-arrow" aria-hidden="true">→</span><?php endif; ?></li>
+        $journeyIcons = ['search', 'passenger', 'seat', 'payment', 'verify', 'ticket'];
+        foreach (['Search', 'Book', 'Choose Seat', 'Payment', 'Verification', 'Ticket'] as $index => $step): ?>
+            <li><a href="<?= $escape($journeyPaths[$index]) ?>"><span class="sr-only">Step <?= $index + 1 ?>: </span><span class="feature-number journey-icon" aria-hidden="true"><?= $homeIcon($journeyIcons[$index]) ?></span><span><?= $escape($step) ?></span></a><?php if ($index < 5): ?><span class="journey-arrow" aria-hidden="true"><?= $homeIcon('plane') ?></span><?php endif; ?></li>
         <?php endforeach; ?>
     </ol>
     <p class="muted journey-explanation">The airline reviews your payment before confirmation. Your ticket becomes available after verification and a valid seat assignment.</p>
 </section>
+<section class="home-section" aria-labelledby="destinations-title">
+    <div class="section-heading"><h2 id="destinations-title">Find your next destination</h2><a href="/flights">Explore routes →</a></div>
+    <p class="muted">A little inspiration for your next journey. Check Search Flights for available routes and travel dates.</p>
+    <div class="destination-grid">
+        <?php
+        // Names and codes mirror scripts/seed_inventory.php; no availability is implied.
+        foreach ([['Lahore', 'LHE', 'Allama Iqbal International Airport', 'Pakistan', 'lahore'], ['Karachi', 'KHI', 'Jinnah International Airport', 'Pakistan', 'karachi'], ['Islamabad', 'ISB', 'Islamabad International Airport', 'Pakistan', 'islamabad'], ['Dubai', 'DXB', 'Dubai International Airport', 'United Arab Emirates', 'dubai']] as [$city, $code, $airport, $country, $graphic]): ?>
+            <a class="card destination-card" href="/flights" aria-label="<?= $escape('Explore ' . $city . ' — open Search Flights') ?>">
+                <div class="destination-art" aria-hidden="true"><svg viewBox="0 0 160 90" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><use href="#home-<?= $graphic ?>"/></svg><span class="destination-code"><?= $code ?></span></div>
+                <div class="destination-content"><span class="destination-country"><?= $escape($country) ?></span><h3><?= $escape($city) ?></h3><p><?= $escape($airport) ?></p><span class="destination-link">Explore flights <span aria-hidden="true">→</span></span></div>
+            </a>
+        <?php endforeach; ?>
+    </div>
+</section>
 <section class="card home-final-cta" aria-labelledby="final-cta-title">
+    <svg class="home-cta-art" viewBox="0 0 420 180" fill="none" aria-hidden="true" focusable="false"><circle cx="330" cy="100" r="95"/><ellipse cx="330" cy="100" rx="48" ry="95"/><path d="M235 100h190M250 55h160M250 145h160M5 155C100 20 180 190 340 30" stroke-dasharray="4 7"/><use href="#home-plane" x="175" y="65" width="44" height="44"/></svg>
     <div><h2 id="final-cta-title">Ready for your next journey?</h2><p>Search available flights and reserve your seat in just a few steps.</p></div>
     <div class="actions"><a class="button" href="/flights">Search Flights</a>
         <?php if (($data['user']['role'] ?? '') === 'customer'): ?><a class="button button-secondary" href="/bookings">My Bookings</a>

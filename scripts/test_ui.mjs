@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { checkPassengerForm } from './test_passenger_form.mjs';
 import { checkReportAnalytics } from './test_report_analytics.mjs';
 import { checkTicketPdf } from './test_ticket_pdf.mjs';
+import { checkHomeVisuals } from './test_home_visuals.mjs';
 
 const base = new URL(process.argv[2] || 'http://127.0.0.1:8000');
 if (base.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(base.hostname) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw new Error('Use a local server URL.');
@@ -154,7 +155,14 @@ try {
     });
     await command('Page.enable');
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
-    if (process.argv.includes('--analytics-only') || process.argv.includes('--tickets-only')) {
+    if (process.argv.includes('--home-only')) {
+        await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'guest'});
+        await signIn('customer');
+        await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'customer'});
+        await visit('/profile'); await signOut('customer'); await signIn('admin');
+        await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'admin'});
+        console.log(`${checks} homepage visual browser checks passed. Screenshots: ${artifacts}`);
+    } else if (process.argv.includes('--analytics-only') || process.argv.includes('--tickets-only')) {
         await signIn('customer');
         await visit(`/bookings/seats?booking_id=${fixture.bookingId}`);
         await evaluate(`document.querySelector('#passenger_id').selectedIndex=1; document.querySelector('input[name="seat_id"][value="${fixture.seatId}"]').checked=true; document.querySelector('.account-form').requestSubmit(); true`);

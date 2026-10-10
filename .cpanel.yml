@@ -1,0 +1,34 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/betayhqp/skyreserve.betabox.cx/public
+    - /bin/mkdir -p "$DEPLOYPATH"
+    - >-
+      rsync -rlt --checksum --safe-links
+      --exclude='.git/'
+      --exclude='.cpanel.yml'
+      --exclude='.gitignore'
+      --exclude='.vscode/'
+      --exclude='.env'
+      --exclude='.env.*'
+      --exclude='config/'
+      --exclude='.user.ini'
+      --exclude='php.ini'
+      --exclude='.well-known/'
+      --exclude='uploads/'
+      --exclude='upload/'
+      --exclude='storage/'
+      --exclude='runtime/'
+      --exclude='cache/'
+      --exclude='logs/'
+      --exclude='sessions/'
+      --exclude='tmp/'
+      --exclude='temp/'
+      --exclude='backups/'
+      --exclude='*.log'
+      --exclude='/.setup.lock'
+      --exclude='/setup.php'
+      --exclude='/database/'
+      --exclude='/tests/'
+      --exclude='/README.md'
+      ./ "$DEPLOYPATH/"
