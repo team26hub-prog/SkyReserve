@@ -61,6 +61,43 @@ try {
         $db->prepare('INSERT INTO cancellations (booking_id, requested_by, previous_booking_status, reason, status, reviewed_by, reviewed_at, review_notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([$bookingId,$users['customer'],'confirmed','<script>Report reason</script>',$status,$status === 'pending' ? null : $users['admin'],$status === 'pending' ? null : '2025-02-05 12:00:00','<b>Report note</b>',$created]); $cancellationIds[] = (int) $db->lastInsertId();
     }
     $metrics = $model->dashboard();
+    // Isolate ordering/relationship cases without changing the committed report fixtures.
+    $db->beginTransaction();
+    try {
+        $recentFixtureIds = [...array_slice($bookings, -7), $confirmed, $submitted, $requested, $cancelled, $unpaid];
+        foreach ($recentFixtureIds as $index => $id) {
+            $db->prepare('UPDATE bookings SET created_at = ? WHERE id = ?')->execute(['2037-12-01 12:00:' . sprintf('%02d', $index), $id]);
+        }
+        $db->prepare('UPDATE passengers SET full_name = NULL WHERE id = ?')->execute([$passengers[1]]);
+        $recent = $model->recentBookings();
+        $expectedIds = $db->query('SELECT id FROM bookings ORDER BY created_at DESC, id DESC LIMIT 10')->fetchAll(PDO::FETCH_COLUMN);
+        $assert(array_map('intval', array_column($recent, 'id')) === array_map('intval', $expectedIds), 'recent dashboard bookings limit ten distinct bookings in deterministic newest-first order');
+        $byId = array_column($recent, null, 'id');
+        $assert(count($byId[$confirmed]['passengers']) === 2 && $byId[$confirmed]['payment_status'] === 'verified'
+            && (int) $byId[$confirmed]['payment_id'] === $paymentIds[1], 'recent bookings retain every passenger and select only latest payment without fanout');
+        $assert($byId[$confirmed]['passengers'][0]['seat_number'] === '1A' && $byId[$confirmed]['passengers'][0]['cabin_class'] === 'business'
+            && $byId[$confirmed]['passengers'][1]['name'] === 'Report Passenger', 'recent bookings pair seats and cabin classes with passengers and support legacy names');
+        $assert($byId[$cancelled]['passengers'][0]['seat_number'] === null && $byId[$submitted]['passengers'][0]['seat_number'] === null,
+            'recent bookings exclude released seats and retain unassigned passengers');
+        $noPayment = $byId[$recentFixtureIds[6]];
+        $assert($noPayment['payment_status'] === null && $noPayment['passengers'] === [], 'recent bookings retain bookings without payments or passengers');
+        $renderRecent = static function (array $rows): string {
+            $data = ['recentBookings' => $rows];
+            $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            ob_start(); require BASE_PATH . '/app/Views/admin/recent-bookings.php'; return ob_get_clean();
+        };
+        $html = $renderRecent($recent);
+        $assert(str_contains($html, '&lt;b&gt;Report customer&lt;/b&gt;') && str_contains($html, '&lt;i&gt;Report Passenger 0&lt;/i&gt;')
+            && !str_contains($html, '<b>Report customer</b>') && str_contains($html, 'Seat not assigned') && str_contains($html, 'Not submitted'), 'recent booking section escapes stored names and provides missing-data labels');
+        $unsafe = $recent;
+        foreach (['customer_email', 'booking_reference', 'flight_number', 'origin_code', 'destination_code', 'created_at', 'booking_status', 'payment_status'] as $field) $unsafe[0][$field] = '"><script>alert(1)</script>';
+        $unsafe[0]['passengers'] = [['name' => '<img onerror="alert(1)">', 'seat_number' => '<script>seat</script>', 'cabin_class' => '<script>class</script>']];
+        $unsafeHtml = $renderRecent($unsafe);
+        $assert(!str_contains($unsafeHtml, '<script>') && !str_contains($unsafeHtml, '<img onerror='), 'recent booking cells, badges, timestamps and action labels escape hostile values');
+        $assert(str_contains($html, '/admin/payments/show?id=' . $paymentIds[1]) && str_contains($html, '/admin/reports/passengers?flight_id=' . $flights[0])
+            && str_contains($html, 'href="/admin/reports/bookings"'), 'recent bookings reuse existing admin payment, passenger and bookings report links');
+        $assert(str_contains($renderRecent([]), 'No customer bookings yet') && !str_contains($renderRecent([]), '<table'), 'recent bookings empty state replaces table and retains report link');
+    } finally { $db->rollBack(); }
     foreach (['customers' => 2,'flights' => 5,'upcoming_flights' => 2,'bookings' => 57,'confirmed_bookings' => 1,'pending_payments' => 1,'pending_cancellations' => 1] as $key => $delta) $assert((int) $metrics[$key] === (int) $before[$key]+$delta,'dashboard metric delta: ' . $key);
     $expectedRevenue = $db->query("SELECT currency,SUM(amount) AS amount FROM payments WHERE status = 'verified' GROUP BY currency ORDER BY currency")->fetchAll();
     $assert($metrics['revenue'] === $expectedRevenue,'dashboard verified revenue uses exact decimal sums per currency including cancelled verified payments');
@@ -118,6 +155,10 @@ try {
     $guest = $client(); $customer = $client(); $admin = $client();
     foreach ([[$customer,'customer','/login'],[$admin,'admin','/login']] as [$handle,$role,$login]) { $form = $request($handle,'GET',$login); $assert($request($handle,'POST',$login,['_token' => $token($form),'email' => $emails[$role],'password' => $password])['status'] === 303,'fixture ' . $role . ' login'); }
     $dashboard = $request($admin,'GET','/admin');
+    $assert($request($guest, 'GET', '/admin')['status'] === 303 && $request($customer, 'GET', '/admin')['status'] === 403,
+        'recent customer bookings remain admin-only');
+    $assert(strpos($dashboard['body'], 'id="recent-bookings-title"') > strpos($dashboard['body'], 'id="review-summary-title"')
+        && strpos($dashboard['body'], 'id="recent-bookings-title"') < strpos($dashboard['body'], 'class="management-links'), 'recent bookings appear directly below dashboard review area');
     foreach (['customers','flights','upcoming_flights','bookings','confirmed_bookings','pending_payments','pending_cancellations'] as $key) $assert(str_contains($dashboard['body'],'data-metric="' . $key . '">' . $metrics[$key] . '</strong>'),'dashboard renders accurate ' . $key);
     foreach ($expectedRevenue as $revenue) $assert(str_contains($dashboard['body'],$revenue['currency'] . ' ' . $revenue['amount']),'dashboard renders currency revenue: ' . $revenue['currency']);
     $snapshot = static function () use ($db,$bookings,$flights,$paymentIds,$cancellationIds): array {
@@ -128,6 +169,8 @@ try {
         return $sets;
     };
     $storedBefore = $snapshot();
+    $model->recentBookings();
+    $assert($request($admin, 'GET', '/admin')['status'] === 200, 'recent bookings dashboard can be browsed without changing booking state');
     foreach (['7', '30', '12m'] as $period) {
         $response = $request($admin, 'GET', '/admin/reports?period=' . $period);
         $assert($response['status'] === 200 && str_contains($response['body'], 'id="analytics-data"'), 'admin analytics period renders: ' . $period);

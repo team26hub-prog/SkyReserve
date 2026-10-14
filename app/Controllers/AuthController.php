@@ -29,21 +29,24 @@ final class AuthController extends Controller
         $confirmation = $this->input('password_confirmation');
         $errors = [];
 
-        if ($name === '' || !mb_check_encoding($name, 'UTF-8') || mb_strlen($name) > 120 || preg_match('/[\x00-\x1F\x7F]/', $name)) {
-            $errors['name'] = 'Enter a name of 1–120 characters.';
+        if ($name === '' || !mb_check_encoding($name, 'UTF-8') || mb_strlen($name) > 120
+            || !preg_match("/\A\p{L}[\p{L}\p{M} .'\x{2019}-]*\z/u", $name)) {
+            $errors['name'] = 'Enter a name of 1–120 characters using letters, spaces, apostrophes, periods or hyphens.';
         }
         if (strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = 'Enter a valid email address.';
         }
         // PASSWORD_DEFAULT currently uses bcrypt, which accepts at most 72 bytes.
-        if (mb_strlen($password) < 8 || strlen($password) > 72 || str_contains($password, "\0")) {
+        if (!mb_check_encoding($password, 'UTF-8') || mb_strlen($password) < 8 || strlen($password) > 72 || str_contains($password, "\0")) {
             $errors['password'] = 'Use at least 8 characters and at most 72 bytes.';
         }
-        if ($password !== $confirmation) {
+        if ($confirmation === '' || $password !== $confirmation) {
             $errors['password_confirmation'] = 'Passwords do not match.';
         }
-        if ($phone !== '' && (strlen($phone) > 30 || !preg_match('/\A[0-9+().\- ]+\z/', $phone))) {
-            $errors['phone'] = 'Enter a valid phone number of up to 30 characters.';
+        $phoneDigits = preg_replace('/[^0-9]/', '', $phone);
+        if ($phone !== '' && (strlen($phone) > 30 || !preg_match('/\A\+?[0-9 ().-]+\z/', $phone)
+            || strlen($phoneDigits) < 7 || strlen($phoneDigits) > 15)) {
+            $errors['phone'] = 'Enter a phone number with 7–15 digits, an optional leading + and up to 30 characters.';
         }
 
         $users = new User();

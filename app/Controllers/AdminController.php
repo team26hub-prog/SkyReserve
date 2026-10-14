@@ -12,7 +12,8 @@ final class AdminController extends Controller
     public function index(): void
     {
         $this->requireRole('admin');
-        $metrics = (new AdminReport())->dashboard();
-        $this->render('admin/index', ['title' => 'Admin panel', 'wide' => true, 'metrics' => $metrics, 'pendingPayments' => $metrics['pending_payments'], 'pendingCancellations' => $metrics['pending_cancellations']]);
+        $reports = new AdminReport();
+        $metrics = $reports->dashboard();
+        $this->render('admin/index', ['title' => 'Admin panel', 'wide' => true, 'metrics' => $metrics, 'pendingPayments' => $metrics['pending_payments'], 'pendingCancellations' => $metrics['pending_cancellations'], 'recentBookings' => $reports->recentBookings()]);
     }
 }

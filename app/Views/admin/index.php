@@ -39,6 +39,7 @@ $metricCards = [
         <?php if ($data['pendingCancellations']): ?><a class="button button-secondary" href="/admin/cancellations">Review cancellations</a><?php endif; ?>
     </div>
 </section>
+<?php require __DIR__ . '/recent-bookings.php'; ?>
 <div class="management-links management-links-inline">
     <?php
     $managementCards = [

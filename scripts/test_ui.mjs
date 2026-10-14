@@ -8,6 +8,7 @@ import { checkPassengerForm } from './test_passenger_form.mjs';
 import { checkReportAnalytics } from './test_report_analytics.mjs';
 import { checkTicketPdf } from './test_ticket_pdf.mjs';
 import { checkHomeVisuals } from './test_home_visuals.mjs';
+import { checkRecentBookings } from './test_recent_bookings.mjs';
 
 const base = new URL(process.argv[2] || 'http://127.0.0.1:8000');
 if (base.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(base.hostname) || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw new Error('Use a local server URL.');
@@ -155,7 +156,16 @@ try {
     });
     await command('Page.enable');
     fixture = JSON.parse(execFileSync(php, [fixtureScript, '--create'], { encoding: 'utf8' }));
-    if (process.argv.includes('--home-only')) {
+    if (process.argv.includes('--recent-bookings-only')) {
+        await signIn('admin');
+        await checkPages([['dashboard', '/admin']], 'admin');
+        await checkRecentBookings({ command, evaluate, assert, visit, bookingId: fixture.bookingId, flightId: fixture.flightId,
+            screenshot: async (name) => {
+                const result = await command('Page.captureScreenshot', { captureBeyondViewport: false });
+                writeFileSync(join(artifacts, `${name}.png`), Buffer.from(result.data, 'base64'));
+            } });
+        console.log(`${checks} recent bookings browser checks passed. Screenshots: ${artifacts}`);
+    } else if (process.argv.includes('--home-only')) {
         await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'guest'});
         await signIn('customer');
         await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'customer'});
@@ -264,6 +274,31 @@ try {
     assert(await evaluate(`(() => { document.querySelector('#password').value = 'Visibility-Test-123'; const toggle = document.querySelector('[aria-controls="password"]'); toggle.click(); const shown = document.querySelector('#password').type === 'text' && toggle.getAttribute('aria-pressed') === 'true' && document.querySelector('#password_confirmation').type === 'password'; toggle.click(); return shown && document.querySelector('#password').type === 'password' && document.querySelector('#password').value === 'Visibility-Test-123'; })()`), 'Registration eye toggle preserves values and operates independently');
     assert(await evaluate(`(() => { const toggle = document.querySelector('[aria-controls="password_confirmation"]'); toggle.click(); const shown = document.querySelector('#password_confirmation').type === 'text'; toggle.click(); return shown && document.querySelector('#password_confirmation').type === 'password'; })()`), 'Confirmation password has its own visibility toggle');
     fixture.registeredEmail = fixture.customerEmail.replace('ui-customer-', 'ui-registered-');
+    assert(await evaluate(`(() => {
+        const form = document.querySelector('[data-register-form]');
+        document.querySelector('#name').value = '3456yh';
+        document.querySelector('#email').value = 'invalid-email';
+        document.querySelector('#phone').value = '+().-';
+        document.querySelector('#password').value = 'é'.repeat(37);
+        document.querySelector('#password_confirmation').value = 'different';
+        form.requestSubmit();
+        return ['name', 'email', 'phone', 'password', 'password_confirmation'].every(id =>
+            document.getElementById(id).getAttribute('aria-invalid') === 'true' && document.getElementById(id + '-error').textContent)
+            && !form.dataset.submitting && location.pathname === '/register';
+    })()`), 'Registration blocks invalid names, emails, phones, UTF-8 password byte length and mismatched confirmation');
+    assert(await evaluate(`(() => {
+        document.querySelector('#name').value = "Zoë O'Connor-Smith";
+        document.querySelector('#phone').value = '+92 (300) 123-4567';
+        document.querySelector('#password').value = 'Valid-Password-123';
+        document.querySelector('#password_confirmation').value = 'Valid-Password-123';
+        for (const id of ['name', 'phone', 'password', 'password_confirmation']) document.getElementById(id).dispatchEvent(new Event('input', {bubbles:true}));
+        const valid = ['name', 'phone', 'password', 'password_confirmation'].every(id => document.getElementById(id).validity.valid && !document.getElementById(id + '-error').textContent);
+        document.querySelector('#password').value = 'Changed-Password-123';
+        document.querySelector('#password').dispatchEvent(new Event('input', {bubbles:true}));
+        document.querySelector('#phone').value = '';
+        document.querySelector('#phone').dispatchEvent(new Event('input', {bubbles:true}));
+        return valid && !document.querySelector('#password_confirmation').validity.valid && document.querySelector('#phone').validity.valid;
+    })()`), 'Registration accepts international names and formatted or empty phones, clears corrected errors and rechecks confirmation');
     await evaluate(`document.querySelector('#name').value = 'UI Registration Check'; document.querySelector('#email').value = ${JSON.stringify(fixture.registeredEmail)}; document.querySelector('#password').value = ${JSON.stringify(fixture.password)}; document.querySelector('#password_confirmation').value = ${JSON.stringify(fixture.password)}; document.querySelector('.account-form').requestSubmit(); true`);
     await ready('/login');
     assert(await evaluate(`document.querySelector('.toast[data-kind="success"]').textContent.includes('Account created') && !document.querySelector('#confirmation-dialog').open`), 'Successful registration displays a success toast');
@@ -390,6 +425,11 @@ try {
         ['seats', `/admin/seats?aircraft_id=${fixture.aircraftId}`], ['seat-add', `/admin/seats/create?aircraft_id=${fixture.aircraftId}`], ['seat-edit', `/admin/seats/edit?aircraft_id=${fixture.aircraftId}&id=${fixture.seatId}`],
         ['admin-flights', '/admin/flights'], ['flight-add', '/admin/flights/create'], ['flight-edit', `/admin/flights/edit?id=${fixture.flightId}`], ['admin-flight-details', `/admin/flights/show?id=${fixture.flightId}`],
     ], 'admin');
+    await checkRecentBookings({ command, evaluate, assert, visit, bookingId: fixture.bookingId, flightId: fixture.flightId,
+        screenshot: async (name) => {
+            const result = await command('Page.captureScreenshot', { captureBeyondViewport: false });
+            writeFileSync(join(artifacts, `${name}.png`), Buffer.from(result.data, 'base64'));
+        } });
     await visit('/admin/flights/create');
     assert(await evaluate(`document.querySelector('a.return-link').classList.contains('button-secondary')`), 'Cancel and return is styled as an interactive button');
     await evaluate(`document.querySelector('#flight_number').value = 'UNSAVED-TEST'; document.querySelector('.back-link').click(); true`);

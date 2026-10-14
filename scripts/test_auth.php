@@ -29,7 +29,7 @@ $suffix = bin2hex(random_bytes(8));
 $customerEmail = 'auth-customer-' . $suffix . '@example.invalid';
 $adminEmail = 'auth-admin-' . $suffix . '@example.invalid';
 $password = 'Auth-' . bin2hex(random_bytes(12));
-$name = 'Test <script>alert(1)</script> ' . $suffix;
+$name = "Zoë O'Connor-Smith";
 $db = null;
 $clients = [];
 $checks = 0;
@@ -141,6 +141,29 @@ try {
     $fields = ['name' => $name, 'email' => $customerEmail, 'phone' => '+92 300 1234567', 'password' => $password, 'password_confirmation' => $password, 'role' => 'admin'];
     $assert($request($guest, 'POST', '/register', $fields)['status'] === 403, 'registration rejects missing CSRF');
     $fields['_token'] = $csrf;
+    foreach ([
+        ['name', '3456yh', 'name-error'],
+        ['name', '   ', 'name-error'],
+        ['name', '<script>alert(1)</script>', 'name-error'],
+        ['name', str_repeat('a', 121), 'name-error'],
+        ['phone', '+().-', 'phone-error'],
+        ['phone', '123456', 'phone-error'],
+        ['phone', '1234567890123456', 'phone-error'],
+        ['phone', '123+4567890', 'phone-error'],
+        ['password', str_repeat('é', 37), 'password-error'],
+        ['password', "abcdefgh\0", 'password-error'],
+        ['password_confirmation', '', 'password_confirmation-error'],
+    ] as [$field, $value, $errorId]) {
+        $invalid = $fields;
+        $invalid[$field] = $value;
+        $response = $request($guest, 'POST', '/register', $invalid);
+        $assert($response['status'] === 422 && str_contains($response['body'], 'id="' . $errorId . '" class="field-error" aria-live="polite">')
+            && str_contains($response['body'], 'aria-invalid="true"'), 'registration rejects invalid ' . $field . ' and renders field feedback: ' . bin2hex($value));
+        $assert(!str_contains($response['body'], '<script>alert(1)</script>'), 'invalid registration input is escaped');
+    }
+    $query = $db->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
+    $query->execute([$customerEmail]);
+    $assert((int) $query->fetchColumn() === 0, 'invalid registrations never create an account');
     $invalid = $fields;
     $invalid['email'] = 'invalid-email';
     $invalid['password'] = 'short';
@@ -157,6 +180,8 @@ try {
     $customer = $query->fetch();
     $assert($customer && $customer['role'] === 'customer' && $customer['status'] === 'active', 'submitted admin role is ignored');
     $assert($customer['password_hash'] !== $password && password_verify($password, $customer['password_hash']), 'password is securely hashed');
+    // Legacy/imported names must still be escaped, even though registration rejects markup.
+    $db->prepare('UPDATE users SET name = ? WHERE email = ?')->execute(['Test <script>alert(1)</script> ' . $suffix, $customerEmail]);
     $fields['email'] = strtoupper($customerEmail);
     $response = $request($guest, 'POST', '/register', $fields);
     $assert($response['status'] === 422 && str_contains($response['body'], 'already exists'), 'duplicate email is rejected case-insensitively');

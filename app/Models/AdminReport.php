@@ -31,6 +31,40 @@ final class AdminReport extends Model
         $metrics['revenue'] = $this->db()->query("SELECT currency, SUM(amount) AS amount FROM payments WHERE status = 'verified' GROUP BY currency ORDER BY currency")->fetchAll();
         return $metrics;
     }
+    public function recentBookings(): array
+    {
+        // Limit bookings before joining passengers, so large parties do not consume the limit.
+        // Match the Bookings Report's latest-payment convention and active seat counts.
+        $rows = $this->db()->query("SELECT b.id, b.flight_id, b.booking_reference, b.created_at,
+            b.status AS booking_status, u.name AS customer, u.email AS customer_email,
+            f.flight_number, o.iata_code AS origin_code, d.iata_code AS destination_code,
+            latest.id AS payment_id, latest.status AS payment_status,
+            p.id AS passenger_id, COALESCE(p.full_name, CONCAT(p.first_name, ' ', p.last_name)) AS passenger,
+            s.seat_number, s.cabin_class
+            FROM (SELECT id, user_id, flight_id, booking_reference, created_at, status
+                FROM bookings ORDER BY created_at DESC, id DESC LIMIT 10) b
+            JOIN users u ON u.id = b.user_id
+            JOIN flights f ON f.id = b.flight_id
+            JOIN airports o ON o.id = f.origin_airport_id
+            JOIN airports d ON d.id = f.destination_airport_id
+            LEFT JOIN payments latest ON latest.id = (SELECT MAX(lp.id) FROM payments lp WHERE lp.booking_id = b.id)
+            LEFT JOIN passengers p ON p.booking_id = b.id
+            LEFT JOIN booking_seats bs ON bs.booking_id = b.id AND bs.passenger_id = p.id AND bs.status IN ('reserved','confirmed')
+            LEFT JOIN seats s ON s.id = bs.seat_id
+            ORDER BY b.created_at DESC, b.id DESC, p.id")->fetchAll();
+        $bookings = [];
+        foreach ($rows as $row) {
+            $id = (int) $row['id'];
+            if (!isset($bookings[$id])) {
+                $bookings[$id] = array_diff_key($row, array_flip(['passenger_id', 'passenger', 'seat_number', 'cabin_class']));
+                $bookings[$id]['passengers'] = [];
+            }
+            if ($row['passenger_id'] !== null) {
+                $bookings[$id]['passengers'][] = ['name' => $row['passenger'], 'seat_number' => $row['seat_number'], 'cabin_class' => $row['cabin_class']];
+            }
+        }
+        return array_values($bookings);
+    }
     public function analytics(array $input = [], ?DateTimeImmutable $today = null): array
     {
         foreach ($input as $key => $value) {

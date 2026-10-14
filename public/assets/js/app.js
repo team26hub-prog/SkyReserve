@@ -252,6 +252,60 @@ window.addEventListener('beforeunload', (event) => {
     if (!leavingPage && dirtyForms().length) { event.preventDefault(); event.returnValue = ''; }
 });
 
+// Keep registration rules in step with AuthController, including bcrypt's byte limit.
+document.querySelectorAll('[data-register-form]').forEach((form) => {
+    const fields = ['name', 'email', 'phone', 'password', 'password_confirmation']
+        .map((name) => form.elements.namedItem(name));
+    const password = form.elements.namedItem('password');
+    const confirmation = form.elements.namedItem('password_confirmation');
+    const validate = (field) => {
+        field.setCustomValidity('');
+        const value = field.value;
+        const trimmed = value.trim();
+        let message = '';
+        if (field.name === 'name' && (!/^\p{L}[\p{L}\p{M} .'\u2019-]*$/u.test(trimmed) || [...trimmed].length > 120)) {
+            message = 'Enter a name of 1–120 characters using letters, spaces, apostrophes, periods or hyphens.';
+        } else if (field.name === 'email') {
+            field.value = trimmed.toLowerCase();
+            if (!field.value || field.validity.typeMismatch || new TextEncoder().encode(field.value).length > 254
+                || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(field.value)) message = 'Enter a valid email address.';
+        } else if (field.name === 'phone' && trimmed) {
+            const digits = trimmed.replace(/[^0-9]/g, '').length;
+            if (trimmed.length > 30 || !/^\+?[0-9 ().-]+$/.test(trimmed) || digits < 7 || digits > 15) {
+                message = 'Enter a phone number with 7–15 digits, an optional leading + and up to 30 characters.';
+            }
+        } else if (field.name === 'password' && ([...value].length < 8 || new TextEncoder().encode(value).length > 72 || value.includes('\0'))) {
+            message = 'Use at least 8 characters and at most 72 bytes.';
+        } else if (field.name === 'password_confirmation' && (!value || value !== password.value)) {
+            message = 'Passwords do not match.';
+        }
+        field.setCustomValidity(message);
+        const error = form.querySelector(`#${field.id}-error`);
+        error.textContent = message || (field.validity.valid ? '' : field.validationMessage);
+        if (error.textContent) field.setAttribute('aria-invalid', 'true');
+        else field.removeAttribute('aria-invalid');
+        return field.validity.valid;
+    };
+    // The submit listener also covers values filled by password managers or scripts.
+    // Without JavaScript, the browser's required/type/length checks remain enabled.
+    form.noValidate = true;
+    fields.forEach((field) => {
+        field.addEventListener('blur', () => validate(field));
+        field.addEventListener('input', () => {
+            validate(field);
+            if (field === password && confirmation.value) validate(confirmation);
+        });
+    });
+    form.addEventListener('submit', (event) => {
+        const valid = fields.map(validate).every(Boolean);
+        if (!valid) {
+            event.preventDefault();
+            form.reportValidity();
+            fields.find((field) => !field.validity.valid)?.focus();
+        }
+    });
+});
+
 document.querySelectorAll('form').forEach((form) => {
     const pathname = new URL(form.action).pathname;
     // A field named "method" (payment method) shadows HTMLFormElement.method.
