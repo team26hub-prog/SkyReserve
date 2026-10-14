@@ -162,6 +162,37 @@ try {
         await visit('/profile'); await signOut('customer'); await signIn('admin');
         await checkHomeVisuals({command,evaluate,assert,visit,checkPages,artifacts,role:'admin'});
         console.log(`${checks} homepage visual browser checks passed. Screenshots: ${artifacts}`);
+    } else if (process.argv.includes('--status-filters-only')) {
+        await signIn('customer');
+        for (const section of ['bookings', 'seats', 'tickets']) {
+            await checkPages([[`compact-${section}`, `/bookings?section=${section}&status=confirmed`]], 'customer');
+            for (const width of [320, 375, 600, 768, 1440]) {
+                await command('Emulation.setDeviceMetricsOverride', {width,height:900,deviceScaleFactor:1,mobile:false});
+                assert(await evaluate(`(() => { const compact=document.querySelector('.compact-status-filter'); const tabs=document.querySelector('.booking-status-tabs'); return (getComputedStyle(compact).display!=='none')===(${width}<=600) && (getComputedStyle(tabs).display!=='none')===(${width}>600); })()`), `${section} switches only at the mobile breakpoint at ${width}px`);
+            }
+            await command('Emulation.setDeviceMetricsOverride', {width:375,height:900,deviceScaleFactor:1,mobile:false});
+            assert(await evaluate(`(() => { const compact=document.querySelector('.compact-status-filter'); const desktop=[...document.querySelectorAll('.booking-status-tabs a')]; const options=[...compact.querySelectorAll('nav a')]; return compact.querySelector('summary').textContent.trim()==='Filter: Confirmed' && options.length===7 && options.every((link,index)=>link.href===desktop[index].href) && compact.querySelector('a[aria-current]').textContent==='Confirmed'; })()`), `${section} reuses every status URL and highlights the current status`);
+            await evaluate(`document.querySelector('.compact-status-filter summary').focus();true`);
+            await pause(100);
+            await command('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+            await command('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+            await pause(100);
+            const filterKeyboardState = await evaluate(`({open:document.querySelector('.compact-status-filter').open,expanded:document.querySelector('.compact-status-filter summary').getAttribute('aria-expanded'),focused:document.activeElement.tagName})`);
+            assert(filterKeyboardState.open && filterKeyboardState.expanded==='true', `${section} opens with Enter and announces expanded state: ${JSON.stringify(filterKeyboardState)}`);
+            await command('Input.dispatchKeyEvent', {type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+            assert(await evaluate(`document.activeElement===document.querySelector('.compact-status-filter nav a')`), `${section} Tab reaches the first filter option`);
+            await command('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+            await pause(100);
+            assert(await evaluate(`!document.querySelector('.compact-status-filter').open && document.activeElement===document.querySelector('.compact-status-filter summary')`), `${section} Escape closes and restores focus`);
+            await evaluate(`document.querySelector('.compact-status-filter summary').click();document.querySelector('h1').click();true`);
+            assert(await evaluate(`!document.querySelector('.compact-status-filter').open`), `${section} outside click closes the dropdown`);
+            await evaluate(`document.querySelector('.compact-status-filter summary').click();document.querySelector('.compact-status-filter a[href$="status=cancelled"]').click();true`);
+            await ready('/bookings');
+            assert(await evaluate(`new URL(location.href).searchParams.get('status')==='cancelled' && document.querySelector('.compact-status-filter summary').textContent.trim()==='Filter: Cancelled'`), `${section} selection follows existing filter navigation`);
+        }
+        await visit('/bookings?section=payments');
+        assert(await evaluate(`!document.querySelector('.compact-status-filter') && getComputedStyle(document.querySelector('.booking-status-tabs')).display!=='none'`), 'My Payments retains its current mobile filters');
+        console.log(`${checks} compact status filter browser checks passed.`);
     } else if (process.argv.includes('--payment-details-only')) {
         await signIn('customer');
         await checkPages([['customer-payments', '/bookings?section=payments'], ['customer-payments-filtered', '/bookings?section=payments&status=confirmed']], 'customer');

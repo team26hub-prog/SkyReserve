@@ -1,5 +1,7 @@
 <?php use App\Models\Booking;
 $section = $data['section'] ?? 'bookings';
+$filterStatuses = ['all', 'pending', 'payment_submitted', 'confirmed', 'cancelled', 'cancellation_requested', 'expired'];
+$compactFilters = in_array($section, ['bookings', 'seats', 'tickets'], true);
 $sectionDescriptions = ['bookings' => 'Review your bookings, payment progress, seats, and tickets.', 'seats' => 'Review your assigned seats or choose a seat for an upcoming booking.', 'payments' => 'Track payment progress and open a booking to submit payment or view its receipts.', 'tickets' => 'View and download your E-tickets. Open a confirmed booking to generate tickets after payment verification.']; ?>
 <span class="eyebrow">Your journeys</span><h1><?= $escape($data['title'] ?? 'My Bookings') ?></h1>
 <p class="muted"><?= $escape($sectionDescriptions[$section]) ?></p>
@@ -8,8 +10,21 @@ $sectionDescriptions = ['bookings' => 'Review your bookings, payment progress, s
     <?php require BASE_PATH . '/app/Views/customer/payments/details.php'; ?>
     <h2>All My Payments</h2>
 <?php endif; ?>
-<nav class="filter-tabs booking-status-tabs" aria-label="Booking status filters">
-    <?php foreach (['all', 'pending', 'payment_submitted', 'confirmed', 'cancelled', 'cancellation_requested', 'expired'] as $status): ?><a href="/bookings?section=<?= $escape($section) ?>&amp;status=<?= $status ?>"<?= $data['status'] === $status ? ' aria-current="page"' : '' ?>><?= $escape($status === 'all' ? 'All' : Booking::statusLabel($status)) ?></a><?php endforeach; ?>
+<?php if ($compactFilters): ?>
+<details class="compact-status-filter">
+    <summary aria-controls="mobile-status-options">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M7 12h10m-7 5h4"/></svg>
+        <span>Filter: <?= $escape($data['status'] === 'all' ? 'All' : Booking::statusLabel($data['status'])) ?></span>
+        <svg class="status-filter-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <nav id="mobile-status-options" aria-label="Mobile booking status filters">
+        <?php foreach ($filterStatuses as $status): ?><a href="/bookings?section=<?= $escape($section) ?>&amp;status=<?= $status ?>"<?= $data['status'] === $status ? ' aria-current="page"' : '' ?>><?= $escape($status === 'all' ? 'All' : Booking::statusLabel($status)) ?></a><?php endforeach; ?>
+    </nav>
+</details>
+<script src="/assets/js/status-filter.js" defer></script>
+<?php endif; ?>
+<nav class="filter-tabs booking-status-tabs<?= $compactFilters ? ' has-compact-status-filter' : '' ?>" aria-label="Booking status filters">
+    <?php foreach ($filterStatuses as $status): ?><a href="/bookings?section=<?= $escape($section) ?>&amp;status=<?= $status ?>"<?= $data['status'] === $status ? ' aria-current="page"' : '' ?>><?= $escape($status === 'all' ? 'All' : Booking::statusLabel($status)) ?></a><?php endforeach; ?>
 </nav>
 <?php if (!$data['bookings']): ?><p class="empty-state">No bookings match this filter. <a href="/flights">Search flights</a> to plan a journey.</p><?php endif; ?>
 <div class="flight-results">

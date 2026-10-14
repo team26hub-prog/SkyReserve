@@ -234,6 +234,20 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--da
 .filter-tabs a { padding: .6rem 1rem; min-height: 44px; background: var(--teal-soft); border: 1px solid #b9d6df; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background .15s, box-shadow .15s; }
 .filter-tabs a:hover { background: #d6e9ee; box-shadow: 0 3px 10px rgb(28 118 143 / 10%); }
 .filter-tabs a[aria-current] { background: var(--teal); color: white; }
+.compact-status-filter { display: none; }
+@media (max-width: 600px) {
+    .filter-tabs.booking-status-tabs.has-compact-status-filter { display: none; }
+    .compact-status-filter { display: block; margin: 1.25rem 0; color: var(--navy); }
+    .compact-status-filter summary { display: flex; align-items: center; gap: .6rem; min-height: 46px; padding: .65rem .85rem; border: 1px solid #b9d6df; border-radius: 9px; background: var(--teal-soft); color: var(--teal); font-weight: 600; cursor: pointer; list-style: none; }
+    .compact-status-filter summary::-webkit-details-marker { display: none; }
+    .compact-status-filter summary > svg { flex-shrink: 0; }
+    .compact-status-filter summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .compact-status-filter[open] .status-filter-chevron { transform: rotate(180deg); }
+    .compact-status-filter nav { display: grid; gap: .25rem; margin-top: .5rem; padding: .5rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    .compact-status-filter nav a { display: flex; align-items: center; min-height: 44px; padding: .55rem .65rem; border-radius: 7px; text-decoration: none; overflow-wrap: anywhere; }
+    .compact-status-filter nav a:hover { background: var(--teal-soft); }
+    .compact-status-filter nav a[aria-current] { background: var(--teal); color: white; font-weight: 600; }
+}
 .review-form { margin: 1.5rem 0; padding-top: 1.5rem; border-top: 1px solid var(--border); }
 textarea { resize: vertical; min-height: 100px; }
 .notice { padding: 1rem 1.25rem; border: 1px solid; border-left-width: 4px; border-radius: 10px; margin-bottom: 1.5rem; overflow-wrap: anywhere; }
@@ -386,6 +400,7 @@ dt:last-of-type, dd:last-of-type { border-bottom: 0; }
 .report-totals p { margin: 0; }
 .report-table { min-width: 1050px; }
 .report-table td { min-width: 110px; max-width: 300px; overflow-wrap: anywhere; }
+.app-main .report-table .button { min-width: max-content; white-space: nowrap; overflow-wrap: normal; word-break: normal; }
 .report-pagination { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 1rem 0 1.5rem; }
 .analytics-overview { margin-top: 3rem; }
 .analytics-heading { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: 1.5rem; }
