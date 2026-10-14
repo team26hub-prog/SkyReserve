@@ -174,7 +174,7 @@ try {
         console.log(`${checks} homepage visual browser checks passed. Screenshots: ${artifacts}`);
     } else if (process.argv.includes('--status-filters-only')) {
         await signIn('customer');
-        for (const section of ['bookings', 'seats', 'tickets']) {
+        for (const section of ['bookings', 'seats', 'payments', 'tickets']) {
             await checkPages([[`compact-${section}`, `/bookings?section=${section}&status=confirmed`]], 'customer');
             for (const width of [320, 375, 600, 768, 1440]) {
                 await command('Emulation.setDeviceMetricsOverride', {width,height:900,deviceScaleFactor:1,mobile:false});
@@ -201,7 +201,7 @@ try {
             assert(await evaluate(`new URL(location.href).searchParams.get('status')==='cancelled' && document.querySelector('.compact-status-filter summary').textContent.trim()==='Filter: Cancelled'`), `${section} selection follows existing filter navigation`);
         }
         await visit('/bookings?section=payments');
-        assert(await evaluate(`!document.querySelector('.compact-status-filter') && getComputedStyle(document.querySelector('.booking-status-tabs')).display!=='none'`), 'My Payments retains its current mobile filters');
+        assert(await evaluate(`!!document.querySelector('.compact-status-filter') && !!document.querySelector('.manual-payment-details') && getComputedStyle(document.querySelector('.booking-status-tabs')).display==='none'`), 'My Payments uses compact mobile filters and retains its payment instructions');
         console.log(`${checks} compact status filter browser checks passed.`);
     } else if (process.argv.includes('--payment-details-only')) {
         await signIn('customer');

@@ -1,7 +1,7 @@
 <?php use App\Models\Booking;
 $section = $data['section'] ?? 'bookings';
 $filterStatuses = ['all', 'pending', 'payment_submitted', 'confirmed', 'cancelled', 'cancellation_requested', 'expired'];
-$compactFilters = in_array($section, ['bookings', 'seats', 'tickets'], true);
+$compactFilters = in_array($section, ['bookings', 'seats', 'payments', 'tickets'], true);
 $sectionDescriptions = ['bookings' => 'Review your bookings, payment progress, seats, and tickets.', 'seats' => 'Review your assigned seats or choose a seat for an upcoming booking.', 'payments' => 'Track payment progress and open a booking to submit payment or view its receipts.', 'tickets' => 'View and download your E-tickets. Open a confirmed booking to generate tickets after payment verification.']; ?>
 <span class="eyebrow">Your journeys</span><h1><?= $escape($data['title'] ?? 'My Bookings') ?></h1>
 <p class="muted"><?= $escape($sectionDescriptions[$section]) ?></p>
